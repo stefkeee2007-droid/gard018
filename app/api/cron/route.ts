@@ -1,15 +1,43 @@
 import { NextResponse } from "next/server";
-import { sendTestEmail } from "@/app/admin/actions";
+import { supabase } from "@/lib/supabase";
+import nodemailer from "nodemailer";
 
 export async function GET(request: Request) {
-  const auth = request.headers.get("authorization");
+  const authHeader = request.headers.get("authorization");
 
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  // test – kasnije ovde ide prava logika za istek članarine
-  await sendTestEmail();
+  const today = new Date().toISOString().split("T")[0];
 
-  return NextResponse.json({ sent: true });
+  const { data: members, error } = await supabase
+    .from("members")
+    .select("*")
+    .eq("datum_isteka", today)
+    .eq("is_active_member", true);
+
+  if (error) {
+    console.error(error);
+    return NextResponse.json({ error: "DB error" }, { status: 500 });
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
+
+  for (const member of members ?? []) {
+    await transporter.sendMail({
+      from: process.env.GMAIL_USER,
+      to: member.email,
+      subject: "Istek članarine",
+      text: `Zdravo ${member.ime}, danas ti ističe članarina.`,
+    });
+  }
+
+  return NextResponse.json({ sent: members?.length ?? 0 });
 }

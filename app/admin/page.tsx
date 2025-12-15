@@ -6,7 +6,9 @@ export default function AdminPage() {
       <h1>Admin panel – Članarine</h1>
 
       <form action={sendTestEmail}>
-        <button type="submit">Pošalji test mejl</button>
+        <button type="submit">
+          Pošalji test mejl
+        </button>
       </form>
     </div>
   );
