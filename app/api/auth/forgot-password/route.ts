@@ -3,7 +3,7 @@ import { neon } from "@neondatabase/serverless"
 import { Resend } from "resend"
 
 const sql = neon(process.env.DATABASE_URL!)
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = new Resend("re_YGK6Q5mR_GvjsVUZVVyy5DSpJjj3DP2by")
 
 // Generate random token
 function generateToken(): string {

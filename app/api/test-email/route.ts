@@ -10,8 +10,7 @@ export async function POST(request: NextRequest) {
     console.log("[v0] RESEND_API_KEY length:", process.env.RESEND_API_KEY?.length)
     console.log("[v0] RESEND_API_KEY first 10 chars:", process.env.RESEND_API_KEY?.substring(0, 10))
 
-    // This will work in v0, but you MUST remove it before deploying to Vercel
-    const apiKey = "re_c1tpEyD8_NKFusih9vKVQknRAQfmFcWCv"
+    const apiKey = "re_YGK6Q5mR_GvjsVUZVVyy5DSpJjj3DP2by"
     console.log("[v0] Using hardcoded API key for v0 preview testing")
     console.log("[v0] Hardcoded key length:", apiKey.length)
 
