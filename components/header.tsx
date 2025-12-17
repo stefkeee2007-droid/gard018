@@ -33,12 +33,12 @@ export function Header() {
             />
           </Link>
 
-          <nav className="hidden lg:flex items-center justify-between flex-1 px-8">
+          <nav className="hidden lg:flex items-center gap-2 px-8">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider whitespace-nowrap"
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider whitespace-nowrap px-2"
               >
                 {link.label}
               </Link>
