@@ -18,7 +18,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "Niste ulogovani" }, { status: 401 })
     }
 
-    const filename = `${email}-${Date.now()}-${file.name}`
+    const sanitizedEmail = email.replace(/[^a-z0-9]/g, "")
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "")
+    const filename = `avatars/${sanitizedEmail}-${Date.now()}.${sanitizedFileName.split(".").pop()}`
     const blob = await put(filename, file, { access: "public" })
 
     return Response.json({ url: blob.url })
