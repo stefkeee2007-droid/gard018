@@ -33,18 +33,21 @@ export function Header() {
             />
           </Link>
 
-          <nav className="hidden lg:flex items-center gap-8">
+          <nav className="hidden lg:flex items-center justify-between flex-1 px-8">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider"
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider whitespace-nowrap"
               >
                 {link.label}
               </Link>
             ))}
-            <UserNav />
           </nav>
+
+          <div className="hidden lg:block">
+            <UserNav />
+          </div>
 
           <button className="lg:hidden p-2 text-foreground" onClick={() => setIsOpen(!isOpen)} aria-label="Toggle menu">
             {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
