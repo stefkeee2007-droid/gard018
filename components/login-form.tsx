@@ -61,19 +61,41 @@ export function LoginForm() {
     e.preventDefault()
     setIsResetting(true)
 
-    // Simulate API call with 2 second delay
-    setTimeout(() => {
-      setIsResetting(false)
-      setShowForgotPassword(false)
-      setResetEmail("")
+    try {
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail }),
+      })
 
-      // Show success toast
+      if (response.ok) {
+        setShowForgotPassword(false)
+        setResetEmail("")
+        toast({
+          title: "Link poslat!",
+          description: "Link za resetovanje je poslat na vašu email adresu.",
+          duration: 5000,
+        })
+      } else {
+        const data = await response.json()
+        toast({
+          title: "Greška",
+          description: data.error || "Greška pri slanju email-a",
+          variant: "destructive",
+          duration: 5000,
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Forgot password error:", error)
       toast({
-        title: "Link poslat!",
-        description: "Link za resetovanje je poslat na vašu email adresu.",
+        title: "Greška",
+        description: "Greška pri slanju email-a. Pokušajte ponovo.",
+        variant: "destructive",
         duration: 5000,
       })
-    }, 2000)
+    } finally {
+      setIsResetting(false)
+    }
   }
 
   return (
