@@ -1,14 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = new Resend("re_c1tpEyD8_NKFusih9vKVQknRAQfmFcWCv")
 
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json()
 
     console.log("[v0] Sending test email to:", email)
-    console.log("[v0] Using API key:", process.env.RESEND_API_KEY?.slice(0, 10) + "...")
 
     const { data, error } = await resend.emails.send({
       from: "GARD 018 Borilački Klub <onboarding@resend.dev>",
