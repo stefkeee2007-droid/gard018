@@ -1,7 +1,9 @@
 import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
+import { Resend } from "resend"
 
 const sql = neon(process.env.DATABASE_URL!)
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function GET(request: Request) {
   // Verify cron secret to prevent unauthorized access
@@ -11,7 +13,6 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Find members whose membership expired today or in the past and haven't been notified
     const expiredMembers = await sql`
       SELECT id, first_name, last_name, email, expiry_date
       FROM members
@@ -19,10 +20,11 @@ export async function GET(request: Request) {
       AND status = 'active'
     `
 
+    console.log("[v0] Found expired members:", expiredMembers.length)
+
     const notifications = []
 
     for (const member of expiredMembers) {
-      // Send email notification
       const emailSent = await sendExpiryEmail(member)
 
       if (emailSent) {
@@ -38,6 +40,8 @@ export async function GET(request: Request) {
           email: member.email,
           expiryDate: member.expiry_date,
         })
+
+        console.log(`[v0] Sent expiry email to ${member.email}`)
       }
     }
 
@@ -54,67 +58,95 @@ export async function GET(request: Request) {
 
 async function sendExpiryEmail(member: any) {
   try {
-    // For now, we'll log the email. You can integrate with Resend or SendGrid later
-    const emailContent = {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+
+    const { data, error } = await resend.emails.send({
+      from: "GARD 018 Borilački Klub <onboarding@resend.dev>",
       to: member.email,
-      subject: "Обавештење - Истекла чланарина у клубу Gard 018",
+      replyTo: "ognjen.boks19@gmail.com",
+      subject: "Obaveštenje - Istekla članarina - GARD 018",
       html: `
         <!DOCTYPE html>
         <html>
           <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #8f1528 0%, #1a0000 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-              .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-              .button { display: inline-block; background: #8f1528; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin-top: 20px; }
-              .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+              body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4; }
+              table { border-collapse: collapse; }
+              .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+              .header { background: linear-gradient(135deg, #8f1528 0%, #1a0000 100%); padding: 40px 30px; text-align: center; }
+              .header h1 { color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; }
+              .header p { color: #e0e0e0; margin: 10px 0 0 0; font-size: 14px; }
+              .content { padding: 40px 30px; color: #333333; line-height: 1.6; }
+              .content h2 { color: #8f1528; margin-top: 0; }
+              .info-box { background-color: #f9f9f9; border-left: 4px solid #8f1528; padding: 20px; margin: 20px 0; }
+              .contact-list { list-style: none; padding: 0; }
+              .contact-list li { padding: 8px 0; }
+              .button { display: inline-block; background-color: #8f1528; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+              .footer { background-color: #1a1a1a; color: #999999; padding: 30px; text-align: center; font-size: 12px; }
+              .footer p { margin: 5px 0; }
             </style>
           </head>
           <body>
-            <div class="container">
-              <div class="header">
-                <h1>Gard 018</h1>
-                <p>Боксарски и Кик Боксарски Клуб</p>
-              </div>
-              <div class="content">
-                <h2>Поштовани ${member.first_name} ${member.last_name},</h2>
-                <p>Обавештавамо вас да је ваша чланарина у клубу Gard 018 истекла <strong>${new Date(member.expiry_date).toLocaleDateString("sr-RS")}</strong>.</p>
-                <p>Да бисте наставили са тренинзима, молимо вас да обновите чланарину.</p>
-                <p>За обнову чланарине и додатне информације, контактирајте нас:</p>
-                <ul>
-                  <li>Телефон: +381 60 123 4567</li>
-                  <li>Email: info@gard018.rs</li>
-                  <li>Адреса: Niš, Србија</li>
-                </ul>
-                <a href="mailto:info@gard018.rs" class="button">Контактирајте нас</a>
-              </div>
-              <div class="footer">
-                <p>© 2025 Gard 018 - Боксарски и Кик Боксарски Клуб</p>
-                <p>Niš, Србија</p>
-              </div>
-            </div>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding: 20px 0;">
+                  <table class="container" width="600" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td class="header">
+                        <h1>GARD 018</h1>
+                        <p>Borilački Klub</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="content">
+                        <h2>Poštovani ${member.first_name} ${member.last_name},</h2>
+                        <p>Obaveštavamo vas da je vaša članarina u klubu GARD 018 istekla dana <strong>${new Date(member.expiry_date).toLocaleDateString("sr-RS")}</strong>.</p>
+                        
+                        <div class="info-box">
+                          <strong>Da biste nastavili sa treninzima, molimo vas da obnovite članarinu.</strong>
+                        </div>
+
+                        <p>Za obnovu članarine i dodatne informacije, slobodno nas kontaktirajte:</p>
+                        <ul class="contact-list">
+                          <li><strong>Telefon:</strong> +381 62 202 420</li>
+                          <li><strong>Email:</strong> ognjen.boks19@gmail.com</li>
+                          <li><strong>Adresa:</strong> Niš, Srbija</li>
+                        </ul>
+
+                        <a href="mailto:ognjen.boks19@gmail.com" class="button">Kontaktirajte nas</a>
+
+                        <p style="margin-top: 30px; color: #666; font-size: 14px;">
+                          Radujemo se vašem povratku u klub!
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="footer">
+                        <p><strong>GARD 018 Borilački Klub</strong></p>
+                        <p>Niš, Srbija | +381 62 202 420</p>
+                        <p style="margin-top: 15px;">
+                          Ova poruka je poslata automatski jer je vaša članarina istekla.<br>
+                          Ako imate pitanja, kontaktirajte nas na ognjen.boks19@gmail.com
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
           </body>
         </html>
       `,
+    })
+
+    if (error) {
+      console.error("[v0] Resend error:", error)
+      return false
     }
 
-    // Log email for testing (later integrate with Resend/SendGrid)
-    console.log("[v0] Email would be sent:", emailContent)
-
-    // TODO: Integrate with email service
-    // const response = await fetch('https://api.resend.com/emails', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({
-    //     from: 'Gard 018 <noreply@gard018.rs>',
-    //     ...emailContent
-    //   })
-    // })
-
+    console.log("[v0] Email sent successfully via Resend:", data)
     return true
   } catch (error) {
     console.error("[v0] Error sending email:", error)
