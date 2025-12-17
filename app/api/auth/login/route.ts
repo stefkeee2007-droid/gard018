@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     `
 
     if (user.length === 0) {
-      return NextResponse.json({ error: "Pogrešna lozinka. Pokušajte ponovo." }, { status: 401 })
+      return NextResponse.json({ error: "Pogrešna lozinka ili email. Pokušajte ponovo." }, { status: 401 })
     }
 
     const userData = user[0]
