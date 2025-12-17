@@ -45,6 +45,24 @@ export function RegisterForm() {
         expiryDate = expiry.toISOString().split("T")[0]
       }
 
+      const registerResponse = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+        }),
+      })
+
+      if (!registerResponse.ok) {
+        const error = await registerResponse.json()
+        alert(error.error || "Greška pri registraciji")
+        setIsLoading(false)
+        return
+      }
+
       // Add member to database
       await fetch("/api/members", {
         method: "POST",
@@ -59,22 +77,11 @@ export function RegisterForm() {
         }),
       })
 
-      // Login user
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          name: `${formData.firstName} ${formData.lastName}`,
-        }),
-      })
-
-      if (response.ok) {
-        router.push("/")
-        router.refresh()
-      }
+      router.push("/")
+      router.refresh()
     } catch (error) {
       console.error("Registration failed:", error)
+      alert("Greška pri registraciji")
     } finally {
       setIsLoading(false)
     }
@@ -188,7 +195,7 @@ export function RegisterForm() {
                 }}
                 pattern="\d{2}/\d{2}/\d{4}"
                 required
-                className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                className="bg-background border-border text-foreground placeholder:text-muted-foreground pr-10"
               />
             </div>
           )}

@@ -4,6 +4,7 @@ import { neon } from "@neondatabase/serverless"
 
 const sql = neon(process.env.DATABASE_URL!)
 
+// Simple password hashing using Web Crypto API
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(password)
@@ -15,29 +16,35 @@ async function hashPassword(password: string): Promise<string> {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { email, password } = body
+    const { email, password, firstName, lastName } = body
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email i lozinka su obavezni" }, { status: 400 })
     }
 
-    const passwordHash = await hashPassword(password)
-    const user = await sql`
-      SELECT id, email, first_name, last_name 
-      FROM users 
-      WHERE email = ${email} AND password_hash = ${passwordHash}
-    `
-
-    if (user.length === 0) {
-      return NextResponse.json({ error: "Pogrešna lozinka. Pokušajte ponovo." }, { status: 401 })
+    if (password.length < 8) {
+      return NextResponse.json({ error: "Lozinka mora imati najmanje 8 karaktera" }, { status: 400 })
     }
 
-    const userData = user[0]
+    // Check if user already exists
+    const existingUser = await sql`SELECT id FROM users WHERE email = ${email}`
+    if (existingUser.length > 0) {
+      return NextResponse.json({ error: "Korisnik sa ovom email adresom već postoji" }, { status: 400 })
+    }
+
+    // Hash password and create user
+    const passwordHash = await hashPassword(password)
+    await sql`
+      INSERT INTO users (email, password_hash, first_name, last_name)
+      VALUES (${email}, ${passwordHash}, ${firstName}, ${lastName})
+    `
+
+    // Create session
     const session = {
       user: {
-        email: userData.email,
-        name: `${userData.first_name} ${userData.last_name}`,
-        image: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.first_name + " " + userData.last_name)}&background=8f1528&color=fff`,
+        email,
+        name: `${firstName} ${lastName}`,
+        image: `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName + " " + lastName)}&background=8f1528&color=fff`,
       },
     }
 
@@ -52,7 +59,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, user: session.user })
   } catch (error) {
-    console.error("[v0] Login error:", error)
-    return NextResponse.json({ error: "Greška pri prijavi" }, { status: 500 })
+    console.error("[v0] Registration error:", error)
+    return NextResponse.json({ error: "Greška pri registraciji" }, { status: 500 })
   }
 }
