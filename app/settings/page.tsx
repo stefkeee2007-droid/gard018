@@ -102,6 +102,7 @@ export default function SettingsPage() {
 
       if (res.ok) {
         alert("Profil uspešno ažuriran!")
+        await fetch("/api/auth/session")
         window.location.reload()
       } else {
         alert("Greška pri čuvanju profila")

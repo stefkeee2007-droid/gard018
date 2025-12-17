@@ -82,6 +82,9 @@ export function Footer() {
               <Link href="#programi" className="text-muted-foreground hover:text-primary transition-colors text-sm">
                 Muay Thai
               </Link>
+              <Link href="#programi" className="text-muted-foreground hover:text-primary transition-colors text-sm">
+                Personalni trening
+              </Link>
             </nav>
           </div>
 

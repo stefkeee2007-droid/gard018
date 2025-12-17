@@ -31,6 +31,14 @@ const programs = [
     image: "/thai-muay-thai-fighter-elbow-strike-prajiad-wraps.jpg",
     features: ["Klinč rad", "Udarci laktovima", "Udarci kolenima", "Takmičenja"],
   },
+  {
+    title: "PERSONALNI TRENING",
+    subtitle: "1-na-1 trening",
+    description:
+      "Individualni trening prilagođen vašim ciljevima. Rad sa trenerom na tehnici, snazi, brzini i izdržljivosti.",
+    image: "/personal-training-pads-hitting-one-on-one.jpg",
+    features: ["Individualni pristup", "Fleksibilan raspored", "Brži napredak", "Svi nivoi"],
+  },
 ]
 
 export function Programs() {
