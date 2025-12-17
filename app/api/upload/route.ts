@@ -3,25 +3,31 @@ import { cookies } from "next/headers"
 
 export async function POST(request: Request) {
   try {
-    const data = await request.formData()
-    const file = data.get("file") as File
+    console.log("[v0] Upload started")
+
+    const formData = await request.formData()
+    const file = formData.get("file") as File
 
     if (!file) {
+      console.log("[v0] No file in form data")
       return Response.json({ error: "Nema fajla" }, { status: 400 })
     }
+
+    console.log("[v0] File received:", file.name, file.type, file.size)
 
     const cookieStore = await cookies()
     const sessionCookie = cookieStore.get("session")
 
     if (!sessionCookie) {
+      console.log("[v0] No session cookie")
       return Response.json({ error: "Niste ulogovani" }, { status: 401 })
     }
 
-    // Session cookie format: "email|name|avatar"
     const sessionData = sessionCookie.value.split("|")
     const email = sessionData[0]
 
     if (!email) {
+      console.log("[v0] No email in session")
       return Response.json({ error: "Niste ulogovani" }, { status: 401 })
     }
 
@@ -29,15 +35,21 @@ export async function POST(request: Request) {
     const extension = file.name.split(".").pop() || "jpg"
     const filename = `avatars/${sanitizedEmail}-${Date.now()}.${extension}`
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    console.log("[v0] Uploading to blob:", filename)
+
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
     const blob = await put(filename, buffer, {
       access: "public",
       contentType: file.type,
     })
 
+    console.log("[v0] Upload successful:", blob.url)
+
     return Response.json({ url: blob.url })
   } catch (error) {
     console.error("[v0] Upload error:", error)
-    return Response.json({ error: "Greška pri upload-ovanju" }, { status: 500 })
+    return Response.json({ error: "Greška pri upload-ovanju slike" }, { status: 500 })
   }
 }

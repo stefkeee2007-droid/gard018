@@ -58,11 +58,7 @@ export function Programs() {
 
   const handleLearnMore = (e: React.MouseEvent, programTitle: string) => {
     e.preventDefault()
-    if (user) {
-      setShowContact(true)
-    } else {
-      window.location.href = "/registracija"
-    }
+    setShowContact(true)
   }
 
   return (
@@ -140,21 +136,21 @@ export function Programs() {
                 <Phone className="w-5 h-5 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Telefon</p>
-                  <p className="text-foreground">+381 18 123 456</p>
+                  <p className="text-foreground">069 010 5213</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="text-foreground">info@gard018.rs</p>
+                  <p className="text-foreground">ognjen.boks19@gmail.com</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <MapPin className="w-5 h-5 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Adresa</p>
-                  <p className="text-foreground">Bulevar Nemanjića 47, Niš</p>
+                  <p className="text-foreground">Светозара Милетића 10, Ниш 18000</p>
                 </div>
               </div>
             </div>
