@@ -1,6 +1,9 @@
 "use client"
 
-import { Calendar, Mail, User, AlertCircle, CheckCircle } from "lucide-react"
+import { Calendar, Mail, User, AlertCircle, CheckCircle, Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useState } from "react"
+import { useToast } from "@/hooks/use-toast"
 
 interface Member {
   id: number
@@ -14,6 +17,9 @@ interface Member {
 }
 
 export function MembersList({ members }: { members: Member[] }) {
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const { toast } = useToast()
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
@@ -43,6 +49,48 @@ export function MembersList({ members }: { members: Member[] }) {
     const today = new Date()
     const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return daysUntilExpiry <= 7 && daysUntilExpiry >= 0
+  }
+
+  const handleDeleteMember = async (memberId: number, memberName: string) => {
+    if (!confirm(`Da li ste sigurni da želite da obrišete člana ${memberName}?`)) {
+      return
+    }
+
+    setDeletingId(memberId)
+    try {
+      const response = await fetch("/api/members/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Uspešno obrisano",
+          description: `Član ${memberName} je uspešno obrisan iz sistema.`,
+        })
+        // Refresh members list
+        if ((window as any).refreshMembers) {
+          ;(window as any).refreshMembers()
+        }
+      } else {
+        const data = await response.json()
+        toast({
+          title: "Greška",
+          description: data.error || "Došlo je do greške pri brisanju člana.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error deleting member:", error)
+      toast({
+        title: "Greška",
+        description: "Došlo je do greške pri brisanju člana.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -106,6 +154,16 @@ export function MembersList({ members }: { members: Member[] }) {
                   </div>
                 )}
               </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDeleteMember(member.id, `${member.first_name} ${member.last_name}`)}
+                disabled={deletingId === member.id}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="w-5 h-5" />
+              </Button>
             </div>
           </div>
         ))}
