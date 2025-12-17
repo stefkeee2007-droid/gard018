@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
-import { Eye, EyeOff, LogIn } from "lucide-react"
+import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react"
 
 export function LoginForm() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -22,6 +23,7 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -29,6 +31,7 @@ export function LoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
+          password: formData.password,
           name: formData.email.split("@")[0],
         }),
       })
@@ -38,11 +41,11 @@ export function LoginForm() {
       if (response.ok) {
         window.location.href = "/"
       } else {
-        alert("Prijava nije uspela. Pokušajte ponovo.")
+        setError(data.error || "Prijava nije uspela. Pokušajte ponovo.")
       }
     } catch (error) {
       console.error("Login error:", error)
-      alert("Greška pri prijavi. Proverite internet konekciju.")
+      setError("Greška pri prijavi. Proverite internet konekciju.")
     } finally {
       setIsLoading(false)
     }
@@ -52,6 +55,13 @@ export function LoginForm() {
     <Card className="border-primary/20 bg-card/50 backdrop-blur-sm shadow-xl">
       <CardContent className="p-8 space-y-6">
         <form onSubmit={handleSubmit} className="space-y-5">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-500 font-medium">{error}</p>
+            </div>
+          )}
+
           <div className="space-y-2.5">
             <Label htmlFor="email" className="text-foreground font-medium text-sm">
               Email adresa
