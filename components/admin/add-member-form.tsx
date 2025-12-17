@@ -18,8 +18,8 @@ export function AddMemberForm() {
     const formData = new FormData(e.currentTarget)
     const startDateInput = formData.get("startDate") as string
 
-    const [day, month, year] = startDateInput.split("/")
-    const startDate = `${year}-${month}-${day}`
+    const [day, month, year] = startDateInput.split(/[./]/)
+    const startDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
 
     const data = {
       firstName: formData.get("firstName"),
@@ -95,11 +95,9 @@ export function AddMemberForm() {
             type="text"
             name="startDate"
             required
-            placeholder="DD/MM/GGGG (нпр. 15/12/2024)"
-            pattern="\d{2}/\d{2}/\d{4}"
-            defaultValue={new Date()
-              .toLocaleDateString("sr-RS", { day: "2-digit", month: "2-digit", year: "numeric" })
-              .replace(/\s/g, "")}
+            placeholder="DD.MM.YYYY (нпр. 17.12.2025)"
+            pattern="\d{2}[./]\d{2}[./]\d{4}"
+            defaultValue={new Date().toLocaleDateString("sr-RS", { day: "2-digit", month: "2-digit", year: "numeric" })}
             className="w-full px-4 py-2 bg-background/50 border border-primary/20 rounded-lg text-foreground focus:outline-none focus:border-primary transition-colors"
           />
         </div>
