@@ -37,12 +37,8 @@ export async function POST(request: Request) {
 
     console.log("[v0] Uploading to blob:", filename)
 
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    const blob = await put(filename, buffer, {
+    const blob = await put(filename, file, {
       access: "public",
-      contentType: file.type,
     })
 
     console.log("[v0] Upload successful:", blob.url)
@@ -50,6 +46,9 @@ export async function POST(request: Request) {
     return Response.json({ url: blob.url })
   } catch (error) {
     console.error("[v0] Upload error:", error)
-    return Response.json({ error: "Greška pri upload-ovanju slike" }, { status: 500 })
+    return Response.json(
+      { error: `Greška pri upload-ovanju: ${error instanceof Error ? error.message : "nepoznata greška"}` },
+      { status: 500 },
+    )
   }
 }
