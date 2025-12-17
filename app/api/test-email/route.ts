@@ -1,13 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json()
 
     console.log("[v0] Sending test email to:", email)
+    console.log("[v0] RESEND_API_KEY exists:", !!process.env.RESEND_API_KEY)
+    console.log("[v0] RESEND_API_KEY length:", process.env.RESEND_API_KEY?.length)
+    console.log("[v0] RESEND_API_KEY first 10 chars:", process.env.RESEND_API_KEY?.substring(0, 10))
+
+    // This will work in v0, but you MUST remove it before deploying to Vercel
+    const apiKey = "re_c1tpEyD8_NKFusih9vKVQknRAQfmFcWCv"
+    console.log("[v0] Using hardcoded API key for v0 preview testing")
+    console.log("[v0] Hardcoded key length:", apiKey.length)
+
+    const resend = new Resend(apiKey)
 
     const { data, error } = await resend.emails.send({
       from: "GARD 018 Borilački Klub <onboarding@resend.dev>",
