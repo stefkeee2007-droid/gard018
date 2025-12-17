@@ -1,8 +1,10 @@
 "use client"
 
+import type React from "react"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Trash2, Save } from "lucide-react"
+import { ArrowLeft, Trash2, Save, Upload, X } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -13,9 +15,12 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any>(null)
   const [name, setName] = useState("")
   const [imageUrl, setImageUrl] = useState("")
+  const [previewUrl, setPreviewUrl] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -28,12 +33,63 @@ export default function SettingsPage() {
         setUser(data.user)
         setName(data.user.name || "")
         setImageUrl(data.user.image || "")
+        setPreviewUrl(data.user.image || "")
         setIsLoading(false)
       })
       .catch(() => {
         router.push("/prijava")
       })
   }, [router])
+
+  const handleFileUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      alert("Molimo izaberite sliku")
+      return
+    }
+
+    setIsUploading(true)
+    const formData = new FormData()
+    formData.append("file", file)
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (res.ok) {
+        const { url } = await res.json()
+        setImageUrl(url)
+        setPreviewUrl(url)
+      } else {
+        alert("Greška pri upload-ovanju slike")
+      }
+    } catch (error) {
+      alert("Greška pri upload-ovanju slike")
+    }
+    setIsUploading(false)
+  }
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true)
+    } else if (e.type === "dragleave") {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    const files = e.dataTransfer.files
+    if (files && files[0]) {
+      handleFileUpload(files[0])
+    }
+  }
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -101,9 +157,9 @@ export default function SettingsPage() {
           <div className="mb-8">
             <label className="block text-sm font-medium text-foreground mb-3">Profilna slika</label>
             <div className="flex items-center gap-6">
-              <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-primary">
-                {imageUrl ? (
-                  <Image src={imageUrl || "/placeholder.svg"} alt="Profile" fill className="object-cover" />
+              <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-primary flex-shrink-0">
+                {previewUrl ? (
+                  <Image src={previewUrl || "/placeholder.svg"} alt="Profile" fill className="object-cover" />
                 ) : (
                   <div className="w-full h-full bg-primary/20 flex items-center justify-center text-4xl text-primary">
                     {name.charAt(0).toUpperCase()}
@@ -111,16 +167,58 @@ export default function SettingsPage() {
                 )}
               </div>
               <div className="flex-1">
-                <Input
-                  type="url"
-                  placeholder="URL slike (npr. https://example.com/slika.jpg)"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="bg-background/50 border-primary/20"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Unesite URL slike ili koristite servise kao imgur.com za upload
-                </p>
+                {/* Drag & Drop Zone */}
+                <div
+                  className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+                    dragActive ? "border-primary bg-primary/10" : "border-primary/30 hover:border-primary/50"
+                  }`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  <input
+                    type="file"
+                    id="image-upload"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleFileUpload(e.target.files[0])
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  <label htmlFor="image-upload" className="cursor-pointer">
+                    <div className="flex items-center justify-center gap-2 text-foreground">
+                      {isUploading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                          Učitavanje...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Prevucite sliku ili kliknite
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">PNG, JPG, WebP (max 5MB)</p>
+                  </label>
+                </div>
+                {previewUrl && (
+                  <Button
+                    onClick={() => {
+                      setImageUrl("")
+                      setPreviewUrl("")
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2 text-red-500 border-red-500 hover:bg-red-500/10"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Ukloni sliku
+                  </Button>
+                )}
               </div>
             </div>
           </div>

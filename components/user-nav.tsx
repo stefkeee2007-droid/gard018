@@ -124,10 +124,6 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-border" />
-        <DropdownMenuItem className="text-foreground hover:bg-accent cursor-pointer">
-          <UserIcon className="mr-2 h-4 w-4" />
-          Profil
-        </DropdownMenuItem>
         <DropdownMenuItem
           className="text-foreground hover:bg-accent cursor-pointer"
           onClick={() => router.push("/settings")}
