@@ -11,7 +11,11 @@ export async function GET() {
     }
 
     const session = JSON.parse(sessionCookie.value)
-    return NextResponse.json(session)
+
+    // Return user in consistent format
+    return NextResponse.json({
+      user: session.user || session,
+    })
   } catch (error) {
     console.error("Session error:", error)
     return NextResponse.json({ user: null })
