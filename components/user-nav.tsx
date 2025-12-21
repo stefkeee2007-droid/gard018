@@ -116,42 +116,30 @@ export function UserNav() {
           )}
         </div>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-foreground text-background border-border shadow-lg">
-        <DropdownMenuLabel className="text-background">
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium">{user.name}</p>
-            <p className="text-xs text-muted-foreground">{user.email}</p>
+            <p className="text-xs text-zinc-400">{user.email}</p>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-background/20" />
-        <DropdownMenuItem
-          className="text-background hover:bg-background/20 cursor-pointer"
-          onClick={() => router.push("/settings")}
-        >
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/settings")}>
           <Settings className="mr-2 h-4 w-4" />
           Podešavanja
         </DropdownMenuItem>
         {isAdmin && (
           <>
-            <DropdownMenuSeparator className="bg-background/20" />
-            <DropdownMenuItem
-              className="text-background hover:bg-background/20 cursor-pointer"
-              onClick={() => router.push("/admin")}
-            >
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/admin")}>
               <Users className="mr-2 h-4 w-4" />
               Pregled članarina
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-background hover:bg-background/20 cursor-pointer"
-              onClick={() => router.push("/admin/messages")}
-            >
+            <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/admin/messages")}>
               <MessageSquare className="mr-2 h-4 w-4" />
               Poruke korisnika
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-background hover:bg-background/20 cursor-pointer"
-              onClick={() => router.push("/admin/manage-admins")}
-            >
+            <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/admin/manage-admins")}>
               <Shield className="mr-2 h-4 w-4" />
               Upravljaj adminima
             </DropdownMenuItem>
@@ -159,7 +147,7 @@ export function UserNav() {
         )}
         {membership && (
           <>
-            <DropdownMenuSeparator className="bg-background/20" />
+            <DropdownMenuSeparator />
             <div className="px-2 py-3">
               <div className="flex items-start gap-2 text-xs">
                 <Calendar className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
@@ -172,19 +160,19 @@ export function UserNav() {
                       Ističe za {daysLeft} {daysLeft === 1 ? "dan" : "dana"}
                     </p>
                   ) : daysLeft !== null ? (
-                    <p className="text-muted-foreground mt-1">
+                    <p className="text-zinc-400 mt-1">
                       Ističe {new Date(membership.expiry_date).toLocaleDateString("sr-RS")}
                     </p>
                   ) : (
-                    <p className="text-muted-foreground mt-1">Nema podataka</p>
+                    <p className="text-zinc-400 mt-1">Nema podataka</p>
                   )}
                 </div>
               </div>
             </div>
           </>
         )}
-        <DropdownMenuSeparator className="bg-background/20" />
-        <DropdownMenuItem className="text-background hover:bg-background/20 cursor-pointer" onClick={handleLogout}>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           Odjavi se
         </DropdownMenuItem>
