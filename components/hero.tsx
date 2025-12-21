@@ -47,7 +47,7 @@ export function Hero() {
           <div className="mt-16 grid grid-cols-2 gap-8 max-w-md mx-auto">
             <div className="text-center">
               <p className="text-3xl md:text-4xl font-bold text-primary" style={{ fontFamily: "var(--font-heading)" }}>
-                20+
+                50+
               </p>
               <p className="text-sm text-muted-foreground uppercase tracking-wider mt-1">Aktivnih članova</p>
             </div>

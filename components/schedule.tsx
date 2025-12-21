@@ -6,22 +6,22 @@ const schedule = [
   {
     day: "Ponedeljak",
     dayShort: "PON",
-    classes: [{ time: "20:00 - 21:30", name: "Boks, Kik Boks, Muay Thai" }],
+    classes: [{ time: "20:00 - 21:00", name: "Boks, Kik Boks, Muay Thai" }],
   },
   {
     day: "Utorak",
     dayShort: "UTO",
-    classes: [{ time: "20:00 - 21:30", name: "Boks, Kik Boks, Muay Thai" }],
+    classes: [{ time: "20:00 - 21:00", name: "Boks, Kik Boks, Muay Thai" }],
   },
   {
     day: "Četvrtak",
     dayShort: "ČET",
-    classes: [{ time: "20:00 - 21:30", name: "Boks, Kik Boks, Muay Thai" }],
+    classes: [{ time: "20:00 - 21:00", name: "Boks, Kik Boks, Muay Thai" }],
   },
   {
     day: "Petak",
     dayShort: "PET",
-    classes: [{ time: "20:00 - 21:30", name: "Boks, Kik Boks, Muay Thai" }],
+    classes: [{ time: "20:00 - 21:00", name: "Boks, Kik Boks, Muay Thai" }],
   },
 ]
 
