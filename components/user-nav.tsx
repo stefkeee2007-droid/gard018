@@ -120,7 +120,7 @@ export function UserNav() {
         <DropdownMenuLabel className="text-background">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium">{user.name}</p>
-            <p className="text-xs text-background/70">{user.email}</p>
+            <p className="text-xs text-muted-foreground">{user.email}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-background/20" />
@@ -164,7 +164,7 @@ export function UserNav() {
               <div className="flex items-start gap-2 text-xs">
                 <Calendar className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="font-medium text-background">Članarina</p>
+                  <p className="font-medium text-white">Članarina</p>
                   {isExpired ? (
                     <p className="text-red-500 font-semibold mt-1">Istekla!</p>
                   ) : isExpiringSoon ? (
@@ -172,11 +172,11 @@ export function UserNav() {
                       Ističe za {daysLeft} {daysLeft === 1 ? "dan" : "dana"}
                     </p>
                   ) : daysLeft !== null ? (
-                    <p className="text-background/70 mt-1">
+                    <p className="text-muted-foreground mt-1">
                       Ističe {new Date(membership.expiry_date).toLocaleDateString("sr-RS")}
                     </p>
                   ) : (
-                    <p className="text-background/70 mt-1">Nema podataka</p>
+                    <p className="text-muted-foreground mt-1">Nema podataka</p>
                   )}
                 </div>
               </div>
