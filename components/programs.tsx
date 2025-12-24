@@ -80,8 +80,11 @@ export function Programs() {
             {programs.map((program, index) => (
               <div key={index} className="group relative overflow-hidden rounded-sm border border-primary/10">
                 <div
-                  className="aspect-[3/4] bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
-                  style={{ backgroundImage: `url('${program.image}')` }}
+                  className="aspect-[3/4] bg-contain bg-center bg-no-repeat transition-transform duration-500"
+                  style={{
+                    backgroundImage: `url('${program.image}')`,
+                    backgroundColor: "rgb(24, 24, 27)", // Dark background for letterboxing
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
 
