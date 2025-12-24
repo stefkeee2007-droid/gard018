@@ -76,31 +76,37 @@ export function Programs() {
             <div className="w-20 h-1 bg-primary mx-auto" />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 max-w-6xl mx-auto">
             {programs.map((program, index) => (
-              <div key={index} className="group relative overflow-hidden rounded-sm border border-primary/10">
+              <div
+                key={index}
+                className="group relative overflow-hidden rounded-sm border border-primary/10 min-h-[450px] md:min-h-0"
+              >
                 <div
-                  className="aspect-video bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                  className="h-full md:aspect-[3/2] bg-cover bg-center transition-transform duration-500 group-hover:scale-100"
                   style={{
                     backgroundImage: `url('${program.image}')`,
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-black/40" />
 
-                <div className="absolute bottom-0 left-0 right-0 p-8">
+                <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
                   <p className="text-primary text-xs uppercase tracking-widest mb-2">{program.subtitle}</p>
-                  <h3 className="text-2xl font-bold text-white mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+                  <h3
+                    className="text-xl md:text-2xl font-bold text-white mb-2 md:mb-3"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
                     {program.title}
                   </h3>
-                  <p className="text-gray-200 text-sm mb-4 line-clamp-2 group-hover:line-clamp-none transition-all">
+                  <p className="text-gray-200 text-xs md:text-sm mb-3 md:mb-4 line-clamp-2 group-hover:line-clamp-none transition-all">
                     {program.description}
                   </p>
 
-                  <div className="flex flex-wrap gap-2 mb-4">
+                  <div className="flex flex-wrap gap-2 mb-3 md:mb-4">
                     {program.features.map((feature, idx) => (
                       <span
                         key={idx}
-                        className="text-xs bg-primary/30 backdrop-blur-sm text-white px-3 py-1 rounded-sm border border-primary/30"
+                        className="text-[10px] md:text-xs bg-primary/30 backdrop-blur-sm text-white px-2 md:px-3 py-1 rounded-sm border border-primary/30"
                       >
                         {feature}
                       </span>
@@ -110,9 +116,9 @@ export function Programs() {
                   <Button
                     onClick={(e) => handleLearnMore(e, program.title)}
                     variant="ghost"
-                    className="text-primary hover:text-primary hover:bg-primary/20 p-0 h-auto uppercase tracking-wider text-xs"
+                    className="text-primary hover:text-primary hover:bg-primary/20 p-0 h-auto uppercase tracking-wider text-[10px] md:text-xs"
                   >
-                    Saznaj više <ArrowRight className="ml-2 w-4 h-4" />
+                    Saznaj više <ArrowRight className="ml-2 w-3 h-3 md:w-4 md:h-4" />
                   </Button>
                 </div>
               </div>
