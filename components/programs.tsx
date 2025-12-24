@@ -12,7 +12,7 @@ const programs = [
     subtitle: "Klasični boks",
     description:
       "Naučite tehnike boksa od osnovnih stavova do naprednih kombinacija. Program uključuje rad na vrećama, sparinge i kondicionu pripremu.",
-    image: "/dynamic-boxer-training-intense-punching-action.jpg",
+    image: "/images/boks.jpeg",
     features: ["Tehnika udaraca", "Odbrana", "Kondicija", "Sparing"],
   },
   {
@@ -20,7 +20,7 @@ const programs = [
     subtitle: "K-1 stil",
     description:
       "Kombinacija boksa i tehnike nogu. Intenzivan trening koji razvija snagu, brzinu i koordinaciju celog tela.",
-    image: "/kickboxer-high-roundhouse-kick-heavy-bag-training.jpg",
+    image: "/images/kickboks.jpeg",
     features: ["Udarci nogama", "Kombinacije", "Klinč tehnika", "Takmičenja"],
   },
   {
@@ -28,7 +28,7 @@ const programs = [
     subtitle: "Tajlandski boks",
     description:
       "Tradicionalna tajlandska borilačka veština poznata kao 'Veština osam ekstremiteta'. Koristi pesnice, laktove, kolena i noge.",
-    image: "/thai-muay-thai-fighter-elbow-strike-prajiad-wraps.jpg",
+    image: "/images/muay-thai.jpeg",
     features: ["Klinč rad", "Udarci laktovima", "Udarci kolenima", "Takmičenja"],
   },
   {
@@ -36,7 +36,7 @@ const programs = [
     subtitle: "1-na-1 trening",
     description:
       "Individualni trening prilagođen vašim ciljevima. Rad sa trenerom na tehnici, snazi, brzini i izdržljivosti.",
-    image: "/personal-training-pads-hitting-one-on-one.jpg",
+    image: "/images/personalni.jpeg",
     features: ["Individualni pristup", "Fleksibilan raspored", "Brži napredak", "Svi nivoi"],
   },
 ]
