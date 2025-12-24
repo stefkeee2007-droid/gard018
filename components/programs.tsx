@@ -76,23 +76,23 @@ export function Programs() {
             <div className="w-20 h-1 bg-primary mx-auto" />
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
             {programs.map((program, index) => (
               <div key={index} className="group relative overflow-hidden rounded-sm border border-primary/10">
                 <div
-                  className="aspect-[3/4] bg-cover bg-center transition-transform duration-500 scale-90 group-hover:scale-95"
+                  className="aspect-video bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
                   style={{
                     backgroundImage: `url('${program.image}')`,
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20" />
 
-                <div className="absolute bottom-0 left-0 right-0 p-6">
+                <div className="absolute bottom-0 left-0 right-0 p-8">
                   <p className="text-primary text-xs uppercase tracking-widest mb-2">{program.subtitle}</p>
-                  <h3 className="text-2xl font-bold text-foreground mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+                  <h3 className="text-2xl font-bold text-white mb-3" style={{ fontFamily: "var(--font-heading)" }}>
                     {program.title}
                   </h3>
-                  <p className="text-muted-foreground text-sm mb-4 line-clamp-2 group-hover:line-clamp-none transition-all">
+                  <p className="text-gray-200 text-sm mb-4 line-clamp-2 group-hover:line-clamp-none transition-all">
                     {program.description}
                   </p>
 
@@ -100,7 +100,7 @@ export function Programs() {
                     {program.features.map((feature, idx) => (
                       <span
                         key={idx}
-                        className="text-xs bg-primary/20 backdrop-blur-sm text-secondary-foreground px-2 py-1 rounded-sm border border-primary/10"
+                        className="text-xs bg-primary/30 backdrop-blur-sm text-white px-3 py-1 rounded-sm border border-primary/30"
                       >
                         {feature}
                       </span>
@@ -110,7 +110,7 @@ export function Programs() {
                   <Button
                     onClick={(e) => handleLearnMore(e, program.title)}
                     variant="ghost"
-                    className="text-primary hover:text-primary hover:bg-primary/10 p-0 h-auto uppercase tracking-wider text-xs"
+                    className="text-primary hover:text-primary hover:bg-primary/20 p-0 h-auto uppercase tracking-wider text-xs"
                   >
                     Saznaj više <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
