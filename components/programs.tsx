@@ -1,10 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Phone, MapPin, Mail } from "lucide-react"
 import { useEffect, useState } from "react"
+import Image from "next/image"
 
 const programs = [
   {
@@ -83,12 +83,14 @@ export function Programs() {
                 className="group relative overflow-hidden rounded-sm border border-primary/10 bg-card shadow-lg hover:shadow-xl transition-shadow duration-300"
               >
                 {/* Slika - puna vidljivost bez text overlay-a */}
-                <div className="relative overflow-hidden">
-                  <div
-                    className="h-[280px] md:h-[320px] bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-                    style={{
-                      backgroundImage: `url('${program.image}')`,
-                    }}
+                <div className="relative overflow-hidden h-[280px] md:h-[320px]">
+                  <Image
+                    src={program.image || "/placeholder.svg"}
+                    alt={program.title}
+                    fill
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    quality={95}
+                    sizes="(max-width: 768px) 100vw, 50vw"
                   />
                 </div>
 
