@@ -5,28 +5,40 @@ import { X } from "lucide-react"
 
 const images = [
   {
-    src: "https://lh3.googleusercontent.com/gps-cs-s/AG0ilSzl974wBYKOrN8v0Cmyz-YFpu0FKEub-6VCKtF-junCoyrMB_zIUrjjbTr_jFds7tQmFOJF5H0ZAC6kAy6UZJCmxstRKmbA6xdUaVq3XgPdDpJcwYoQ253u0VH-HUnpfAaFC157=w1600-h1200",
-    alt: "Gard 018 klub",
+    src: "/images/img-6435.jpeg",
+    alt: "Personalni trening",
   },
   {
-    src: "https://lh3.googleusercontent.com/p/AF1QipO63lNTKppagPikdW7qeCnVmY-3O7Uu0RYoWInb=w800-h1000-k-no",
-    alt: "Takmičari Gard 018",
+    src: "/images/img-6497.jpeg",
+    alt: "Trening omladine",
   },
   {
-    src: "https://lh3.googleusercontent.com/p/AF1QipPC9cDcShUhDJcDkgHay4u6GRebLuEExMrpP6xk=w1152-h2048-k-no",
-    alt: "Trening u sali",
+    src: "/images/za-20galeriju-20-2810-29.jpeg",
+    alt: "Merenje pred meč",
   },
   {
-    src: "https://lh3.googleusercontent.com/p/AF1QipN-xu6TrolMP28LXEc9ARwj9ruLt-vPMqyPSlpU=w800-h1000-k-no",
-    alt: "Naši takmičari",
+    src: "/images/za-20galeriju-20-285-29.jpeg",
+    alt: "Pobeda sa srpskom zastavom",
   },
   {
     src: "https://lh3.googleusercontent.com/p/AF1QipPuVMRkf6qtFz2mM-rn4MJFxT6SH5_MPlOSIEfm=w1600-h1000-k-no",
     alt: "Grupni trening",
   },
   {
-    src: "https://lh3.googleusercontent.com/p/AF1QipP_sZWsnMzGS7JjUazmVfJZVb8iEYTcMSV_NlZK=w1600-h1000-k-no",
-    alt: "Sala za trening",
+    src: "/images/za-20galeriju-20-283-29.jpeg",
+    alt: "Pobeda na ringu",
+  },
+  {
+    src: "/images/za-20galeriju-20-286-29.jpeg",
+    alt: "Svetsko prvenstvo",
+  },
+  {
+    src: "/images/za-20galeriju-20-287-29.jpeg",
+    alt: "WAKO šampionat",
+  },
+  {
+    src: "/images/za-20galeriju.jpeg",
+    alt: "Osvojena titula",
   },
 ]
 
