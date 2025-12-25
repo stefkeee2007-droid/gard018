@@ -87,14 +87,8 @@ export function Programs() {
                     src={program.image || "/placeholder.svg"}
                     alt={program.title}
                     fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    style={{
-                      filter: "blur(0.3px)",
-                      imageRendering: "high-quality",
-                      WebkitBackfaceVisibility: "hidden",
-                      backfaceVisibility: "hidden",
-                    }}
-                    quality={100}
+                    className="object-cover"
+                    quality={95}
                     priority={index < 2}
                     sizes="(max-width: 768px) 100vw, 50vw"
                   />
