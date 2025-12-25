@@ -83,12 +83,12 @@ export function Programs() {
                 className="group relative overflow-hidden rounded-sm border border-primary/10 min-h-[450px] md:min-h-0"
               >
                 <div
-                  className="h-full md:aspect-[3/2] bg-cover bg-center transition-transform duration-500 group-hover:scale-100"
+                  className="h-full md:aspect-[3/2] bg-cover bg-top md:bg-center transition-transform duration-500 group-hover:scale-105"
                   style={{
                     backgroundImage: `url('${program.image}')`,
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-black/40" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/75 to-black/30" />
 
                 <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
                   <p className="text-primary text-xs uppercase tracking-widest mb-2">{program.subtitle}</p>
