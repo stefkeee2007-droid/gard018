@@ -5,11 +5,11 @@ import { X } from "lucide-react"
 
 const images = [
   {
-    src: "/images/img-6435.jpeg",
+    src: "/images/img-6435-ezgif.jpeg",
     alt: "Personalni trening",
   },
   {
-    src: "/images/img-6497.jpeg",
+    src: "/images/img-6497-ezgif.jpeg",
     alt: "Trening omladine",
   },
   {
@@ -70,9 +70,6 @@ export function Gallery() {
                 className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
                 style={{ backgroundImage: `url('${image.src}')` }}
               />
-              <div className="absolute inset-0 bg-background/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                <span className="text-foreground text-sm uppercase tracking-wider">{image.alt}</span>
-              </div>
             </button>
           ))}
         </div>

@@ -67,7 +67,7 @@ export function About() {
             <div
               className="aspect-[4/5] bg-cover bg-center rounded-sm"
               style={{
-                backgroundImage: `url('/boxing-training-gym-dark-moody-athlete-punching-ba.jpg')`,
+                backgroundImage: `url('/images/za-galeriju-6.jpeg')`,
               }}
             />
             <div className="absolute -bottom-8 -left-8 bg-primary p-6 rounded-sm">
