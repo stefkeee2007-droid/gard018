@@ -80,33 +80,36 @@ export function Programs() {
             {programs.map((program, index) => (
               <div
                 key={index}
-                className="group relative overflow-hidden rounded-sm border border-primary/10 min-h-[450px] md:min-h-0"
+                className="group relative overflow-hidden rounded-sm border border-primary/10 bg-card shadow-lg hover:shadow-xl transition-shadow duration-300"
               >
-                <div
-                  className="h-full md:aspect-[3/2] bg-cover bg-top md:bg-center transition-transform duration-500 group-hover:scale-105"
-                  style={{
-                    backgroundImage: `url('${program.image}')`,
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/75 to-black/30" />
+                {/* Slika - puna vidljivost bez text overlay-a */}
+                <div className="relative overflow-hidden">
+                  <div
+                    className="h-[280px] md:h-[320px] bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                    style={{
+                      backgroundImage: `url('${program.image}')`,
+                    }}
+                  />
+                </div>
 
-                <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
+                {/* Tekst kartica ispod slike */}
+                <div className="p-6 md:p-8">
                   <p className="text-primary text-xs uppercase tracking-widest mb-2">{program.subtitle}</p>
                   <h3
-                    className="text-xl md:text-2xl font-bold text-white mb-2 md:mb-3"
+                    className="text-2xl md:text-3xl font-bold text-foreground mb-3"
                     style={{ fontFamily: "var(--font-heading)" }}
                   >
                     {program.title}
                   </h3>
-                  <p className="text-gray-200 text-xs md:text-sm mb-3 md:mb-4 line-clamp-2 group-hover:line-clamp-none transition-all">
+                  <p className="text-muted-foreground text-sm md:text-base mb-4 leading-relaxed">
                     {program.description}
                   </p>
 
-                  <div className="flex flex-wrap gap-2 mb-3 md:mb-4">
+                  <div className="flex flex-wrap gap-2 mb-6">
                     {program.features.map((feature, idx) => (
                       <span
                         key={idx}
-                        className="text-[10px] md:text-xs bg-primary/30 backdrop-blur-sm text-white px-2 md:px-3 py-1 rounded-sm border border-primary/30"
+                        className="text-xs bg-primary/10 text-primary px-3 py-1.5 rounded-sm border border-primary/20"
                       >
                         {feature}
                       </span>
@@ -116,9 +119,9 @@ export function Programs() {
                   <Button
                     onClick={(e) => handleLearnMore(e, program.title)}
                     variant="ghost"
-                    className="text-primary hover:text-primary hover:bg-primary/20 p-0 h-auto uppercase tracking-wider text-[10px] md:text-xs"
+                    className="text-primary hover:text-primary hover:bg-primary/10 p-0 h-auto uppercase tracking-wider text-sm font-semibold"
                   >
-                    Saznaj više <ArrowRight className="ml-2 w-3 h-3 md:w-4 md:h-4" />
+                    Saznaj više <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
                 </div>
               </div>
