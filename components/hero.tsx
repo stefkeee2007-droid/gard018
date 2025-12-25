@@ -16,7 +16,7 @@ export function Hero() {
       <div className="relative z-10 container mx-auto px-4 text-center">
         <div className="max-w-4xl mx-auto">
           <p className="text-primary uppercase tracking-[0.3em] text-sm md:text-base mb-4 font-medium">
-            Boks • Kik Boks • MMA
+            Boks • Kik Boks • Muay Thai
           </p>
 
           <h1

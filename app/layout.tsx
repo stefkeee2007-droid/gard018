@@ -8,11 +8,11 @@ const _inter = Inter({ subsets: ["latin"] })
 const _oswald = Oswald({ subsets: ["latin"], variable: "--font-heading" })
 
 export const metadata: Metadata = {
-  title: "Gard 018 | Boksarski i Kik Boksarski Klub Niš",
+  title: "Borilački klub GARD 018 | Boks, Kik Boks, Muay Thai",
   description:
-    "Profesionalni boksarski i kik boksarski klub u Nišu. Pridruži se našoj porodici šampiona - treninzi za sve uzraste i nivoe.",
+    "Profesionalni borilački klub u Nišu. Treninzi boksa, kik boksa i muay thai-a za sve uzraste i nivoe. Pridruži se porodici šampiona.",
   generator: "v0.app",
-  keywords: ["boks", "kik boks", "Niš", "borilačke veštine", "trening", "Srbija"],
+  keywords: ["boks", "kik boks", "muay thai", "Niš", "borilačke veštine", "trening", "Srbija", "GARD 018"],
 }
 
 export default function RootLayout({
