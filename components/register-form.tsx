@@ -26,6 +26,7 @@ export function RegisterForm() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState("")
   const [isResetting, setIsResetting] = useState(false)
+  const [dateError, setDateError] = useState("")
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -35,9 +36,51 @@ export function RegisterForm() {
     paymentDate: "",
   })
 
+  const validateDate = (dateString: string): boolean => {
+    const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/
+    const match = dateString.match(datePattern)
+
+    if (!match) {
+      setDateError("Neispravan format datuma. Koristite DD/MM/GGGG")
+      return false
+    }
+
+    const [, day, month, year] = match
+    const inputDate = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    if (
+      inputDate.getDate() !== Number.parseInt(day) ||
+      inputDate.getMonth() !== Number.parseInt(month) - 1 ||
+      inputDate.getFullYear() !== Number.parseInt(year)
+    ) {
+      setDateError("Neispravan datum. Proverite dan, mesec i godinu")
+      return false
+    }
+
+    if (inputDate < today) {
+      setDateError("Datum ne može biti u prošlosti")
+      return false
+    }
+
+    setDateError("")
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!acceptedTerms) return
+
+    if (membershipPaid === "paid") {
+      if (!formData.paymentDate) {
+        setDateError("Datum uplate je obavezan")
+        return
+      }
+      if (!validateDate(formData.paymentDate)) {
+        return
+      }
+    }
 
     setIsLoading(true)
     setShowUserExists(false)
@@ -82,7 +125,6 @@ export function RegisterForm() {
         return
       }
 
-      // Add member to database
       await fetch("/api/members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -286,11 +328,25 @@ export function RegisterForm() {
                   onChange={(e) => {
                     const value = e.target.value.replace(/[^\d/]/g, "")
                     setFormData({ ...formData, paymentDate: value })
+                    if (dateError) setDateError("")
+                  }}
+                  onBlur={() => {
+                    if (formData.paymentDate) {
+                      validateDate(formData.paymentDate)
+                    }
                   }}
                   pattern="\d{2}/\d{2}/\d{4}"
                   required
-                  className="bg-background border-border text-foreground placeholder:text-muted-foreground pr-10"
+                  className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${
+                    dateError ? "border-destructive focus-visible:ring-destructive" : ""
+                  }`}
                 />
+                {dateError && (
+                  <p className="text-sm text-destructive flex items-center gap-1.5 mt-1.5">
+                    <AlertCircle className="w-4 h-4" />
+                    {dateError}
+                  </p>
+                )}
               </div>
             )}
 
