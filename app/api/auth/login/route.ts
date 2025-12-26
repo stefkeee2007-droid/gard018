@@ -1,15 +1,13 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
+import bcrypt from "bcryptjs"
 
 const sql = neon(process.env.DATABASE_URL!)
 
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
 }
 
 export async function POST(request: Request) {
@@ -21,11 +19,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email i lozinka su obavezni" }, { status: 400 })
     }
 
-    const passwordHash = await hashPassword(password)
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: "Nevažeća email adresa" }, { status: 400 })
+    }
+
+    const sanitizedEmail = email.toLowerCase().trim()
+
     const user = await sql`
-      SELECT id, email, first_name, last_name 
+      SELECT id, email, first_name, last_name, password_hash
       FROM users 
-      WHERE email = ${email} AND password_hash = ${passwordHash}
+      WHERE email = ${sanitizedEmail}
     `
 
     if (user.length === 0) {
@@ -33,6 +36,13 @@ export async function POST(request: Request) {
     }
 
     const userData = user[0]
+
+    const passwordMatch = await bcrypt.compare(password, userData.password_hash)
+
+    if (!passwordMatch) {
+      return NextResponse.json({ error: "Pogrešna lozinka ili email. Pokušajte ponovo." }, { status: 401 })
+    }
+
     const session = {
       user: {
         email: userData.email,
@@ -50,9 +60,14 @@ export async function POST(request: Request) {
       path: "/",
     })
 
+    console.log("[v0] User logged in successfully:", sanitizedEmail)
+
     return NextResponse.json({ success: true, user: session.user })
   } catch (error) {
-    console.error("[v0] Login error:", error)
-    return NextResponse.json({ error: "Greška pri prijavi" }, { status: 500 })
+    console.error("[v0] Login error:", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    return NextResponse.json({ error: "Greška pri prijavi. Molimo pokušajte ponovo." }, { status: 500 })
   }
 }

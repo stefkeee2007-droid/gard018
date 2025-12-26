@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
 const sql = neon(process.env.DATABASE_URL!)
-const resend = new Resend("re_YGK6Q5mR_GvjsVUZVVyy5DSpJjj3DP2by")
+const resend = new Resend(process.env.RESEND_API_KEY!)
 
 export async function GET(request: Request) {
   // Verify cron secret to prevent unauthorized access
@@ -23,40 +23,70 @@ export async function GET(request: Request) {
     console.log("[v0] Found expired members:", expiredMembers.length)
 
     const notifications = []
+    const failed = []
 
     for (const member of expiredMembers) {
-      const emailSent = await sendExpiryEmail(member)
+      try {
+        console.log(`[v0] Processing member: ${member.email}`)
 
-      if (emailSent) {
-        // Update member status to 'expired' after notification
-        await sql`
-          UPDATE members
-          SET status = 'expired', updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${member.id}
-        `
+        // Step 1: Attempt to send email first
+        const emailSent = await sendExpiryEmail(member)
 
-        notifications.push({
+        // Step 2: Only update database if email was sent successfully
+        if (emailSent) {
+          await sql`
+            UPDATE members
+            SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${member.id}
+          `
+
+          notifications.push({
+            member: `${member.first_name} ${member.last_name}`,
+            email: member.email,
+            expiryDate: member.expiry_date,
+          })
+
+          console.log(`[v0] Successfully processed ${member.email}`)
+        } else {
+          // Email failed, do NOT update database
+          failed.push({
+            member: `${member.first_name} ${member.last_name}`,
+            email: member.email,
+            reason: "Email sending failed",
+          })
+          console.error(`[v0] Failed to send email to ${member.email}, database NOT updated`)
+        }
+      } catch (memberError) {
+        console.error(`[v0] Error processing member ${member.email}:`, memberError)
+        failed.push({
           member: `${member.first_name} ${member.last_name}`,
           email: member.email,
-          expiryDate: member.expiry_date,
+          reason: memberError instanceof Error ? memberError.message : "Unknown error",
         })
-
-        console.log(`[v0] Sent expiry email to ${member.email}`)
       }
     }
 
     return NextResponse.json({
       success: true,
       message: `Checked memberships. Found ${expiredMembers.length} expired.`,
+      notificationsSent: notifications.length,
       notifications,
+      failed: failed.length > 0 ? failed : undefined,
     })
   } catch (error) {
-    console.error("[v0] Error checking memberships:", error)
-    return NextResponse.json({ success: false, error: "Failed to check memberships" }, { status: 500 })
+    console.error("[v0] Critical error checking memberships:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to check memberships",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }
 
-async function sendExpiryEmail(member: any) {
+async function sendExpiryEmail(member: any): Promise<boolean> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
 
@@ -142,14 +172,26 @@ async function sendExpiryEmail(member: any) {
     })
 
     if (error) {
-      console.error("[v0] Resend error:", error)
+      console.error("[v0] Resend API error details:", {
+        memberEmail: member.email,
+        errorName: error.name,
+        errorMessage: error.message,
+        fullError: JSON.stringify(error),
+      })
       return false
     }
 
-    console.log("[v0] Email sent successfully via Resend:", data)
+    console.log("[v0] Email sent successfully via Resend:", {
+      memberEmail: member.email,
+      emailId: data?.id,
+    })
     return true
   } catch (error) {
-    console.error("[v0] Error sending email:", error)
+    console.error("[v0] Unexpected error in sendExpiryEmail:", {
+      memberEmail: member.email,
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return false
   }
 }
