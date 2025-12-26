@@ -5,7 +5,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { MapPin, Phone, Mail } from "lucide-react"
+import { MapPin, Phone, Mail, Loader2, CheckCircle, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export function Contact() {
   const [formData, setFormData] = useState({
@@ -16,27 +17,50 @@ export function Contact() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
+  const [errorMessage, setErrorMessage] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     setSubmitStatus("idle")
+    setErrorMessage("")
 
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+
       const response = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       if (response.ok) {
         setSubmitStatus("success")
         setFormData({ name: "", email: "", phone: "", message: "" })
       } else {
+        const errorData = await response.json().catch(() => ({ error: "Nepoznata greška" }))
+        setErrorMessage(errorData.error || "Server je vratio grešku. Pokušajte ponovo.")
         setSubmitStatus("error")
       }
     } catch (error) {
-      console.error("Error sending message:", error)
+      console.error("[v0] Contact form error:", error)
+
+      if (error instanceof Error) {
+        if (error.name === "AbortError") {
+          setErrorMessage("Zahtev je istekao. Proverite internet konekciju i pokušajte ponovo.")
+        } else if (error.message.includes("fetch")) {
+          setErrorMessage("Nema internet konekcije. Proverite vašu mrežu.")
+        } else {
+          setErrorMessage("Došlo je do neočekivane greške. Molimo pokušajte ponovo.")
+        }
+      } else {
+        setErrorMessage("Greška pri slanju poruke. Pokušajte ponovo kasnije.")
+      }
+
       setSubmitStatus("error")
     } finally {
       setIsSubmitting(false)
@@ -135,6 +159,7 @@ export function Contact() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="bg-primary/5 border-primary/20 text-foreground"
                   placeholder="Unesite ime i prezime"
+                  disabled={isSubmitting}
                   required
                 />
               </div>
@@ -150,6 +175,7 @@ export function Contact() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="bg-primary/5 border-primary/20 text-foreground"
                   placeholder="vasa@email.com"
+                  disabled={isSubmitting}
                   required
                 />
               </div>
@@ -165,6 +191,7 @@ export function Contact() {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="bg-primary/5 border-primary/20 text-foreground"
                   placeholder="+381 63 123 4567"
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -178,6 +205,7 @@ export function Contact() {
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                   className="bg-primary/5 border-primary/20 text-foreground min-h-[150px]"
                   placeholder="Napišite vašu poruku..."
+                  disabled={isSubmitting}
                   required
                 />
               </div>
@@ -186,14 +214,34 @@ export function Contact() {
                 type="submit"
                 size="lg"
                 disabled={isSubmitting}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 uppercase tracking-wider"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 uppercase tracking-wider disabled:opacity-50"
               >
-                {isSubmitting ? "Šalje se..." : "Pošalji poruku"}
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Šalje se...
+                  </span>
+                ) : (
+                  "Pošalji poruku"
+                )}
               </Button>
 
-              {submitStatus === "success" && <p className="text-green-500 text-center">Poruka je uspešno poslata!</p>}
+              {submitStatus === "success" && (
+                <Alert className="border-green-500/20 bg-green-500/10">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <AlertDescription className="text-green-500 font-medium">
+                    Poruka je uspešno poslata! Odgovorićemo vam uskoro.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {submitStatus === "error" && (
-                <p className="text-red-500 text-center">Greška prilikom slanja poruke. Pokušajte ponovo.</p>
+                <Alert className="border-red-500/20 bg-red-500/10">
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                  <AlertDescription className="text-red-500 font-medium">
+                    {errorMessage || "Greška prilikom slanja poruke. Pokušajte ponovo."}
+                  </AlertDescription>
+                </Alert>
               )}
             </form>
           </div>

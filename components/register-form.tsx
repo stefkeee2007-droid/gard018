@@ -37,27 +37,57 @@ export function RegisterForm() {
   })
 
   const validateDate = (dateString: string): boolean => {
+    // Check if empty
+    if (!dateString || dateString.trim() === "") {
+      setDateError("Datum je obavezan")
+      return false
+    }
+
+    // Check format DD/MM/YYYY
     const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/
     const match = dateString.match(datePattern)
 
     if (!match) {
-      setDateError("Neispravan format datuma. Koristite DD/MM/GGGG")
+      setDateError("Neispravan format. Koristite DD/MM/GGGG (npr. 15/12/2024)")
       return false
     }
 
     const [, day, month, year] = match
-    const inputDate = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const dayNum = Number.parseInt(day)
+    const monthNum = Number.parseInt(month)
+    const yearNum = Number.parseInt(year)
 
-    if (
-      inputDate.getDate() !== Number.parseInt(day) ||
-      inputDate.getMonth() !== Number.parseInt(month) - 1 ||
-      inputDate.getFullYear() !== Number.parseInt(year)
-    ) {
-      setDateError("Neispravan datum. Proverite dan, mesec i godinu")
+    // Validate ranges
+    if (monthNum < 1 || monthNum > 12) {
+      setDateError("Mesec mora biti između 01 i 12")
       return false
     }
+
+    if (dayNum < 1 || dayNum > 31) {
+      setDateError("Dan mora biti između 01 i 31")
+      return false
+    }
+
+    if (yearNum < 2020 || yearNum > 2100) {
+      setDateError("Godina nije u validnom opsegu")
+      return false
+    }
+
+    const inputDate = new Date(yearNum, monthNum - 1, dayNum)
+
+    if (
+      inputDate.getDate() !== dayNum ||
+      inputDate.getMonth() !== monthNum - 1 ||
+      inputDate.getFullYear() !== yearNum
+    ) {
+      setDateError("Datum ne postoji u kalendaru. Proverite unos.")
+      return false
+    }
+
+    // Check if date is not in the past
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    inputDate.setHours(0, 0, 0, 0)
 
     if (inputDate < today) {
       setDateError("Datum ne može biti u prošlosti")
@@ -70,7 +100,15 @@ export function RegisterForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!acceptedTerms) return
+    if (!acceptedTerms) {
+      toast({
+        title: "Uslovi korišćenja",
+        description: "Morate prihvatiti uslove korišćenja",
+        variant: "destructive",
+        duration: 3000,
+      })
+      return
+    }
 
     if (membershipPaid === "paid") {
       if (!formData.paymentDate) {
@@ -91,11 +129,22 @@ export function RegisterForm() {
 
       if (membershipPaid === "paid" && formData.paymentDate) {
         const [day, month, year] = formData.paymentDate.split("/")
-        startDate = `${year}-${month}-${day}`
+
+        // Ensure zero-padding
+        const paddedDay = day.padStart(2, "0")
+        const paddedMonth = month.padStart(2, "0")
+
+        // Format to ISO (YYYY-MM-DD) for database
+        startDate = `${year}-${paddedMonth}-${paddedDay}`
+
+        // Calculate expiry date (1 month later)
         const expiry = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
         expiry.setMonth(expiry.getMonth() + 1)
         expiryDate = expiry.toISOString().split("T")[0]
       }
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000)
 
       const registerResponse = await fetch("/api/auth/register", {
         method: "POST",
@@ -106,7 +155,10 @@ export function RegisterForm() {
           firstName: formData.firstName,
           lastName: formData.lastName,
         }),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       if (!registerResponse.ok) {
         const error = await registerResponse.json()
@@ -125,7 +177,7 @@ export function RegisterForm() {
         return
       }
 
-      await fetch("/api/members", {
+      const memberResponse = await fetch("/api/members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -138,16 +190,53 @@ export function RegisterForm() {
         }),
       })
 
-      router.push("/")
-      router.refresh()
-    } catch (error) {
-      console.error("Registration failed:", error)
+      if (!memberResponse.ok) {
+        console.error("[v0] Member creation failed after successful registration")
+        toast({
+          title: "Upozorenje",
+          description: "Nalog je kreiran, ali došlo je do problema sa članarinom. Kontaktirajte administratora.",
+          variant: "destructive",
+          duration: 8000,
+        })
+      }
+
       toast({
-        title: "Greška",
-        description: "Greška pri registraciji. Pokušajte ponovo.",
-        variant: "destructive",
-        duration: 5000,
+        title: "Uspešna registracija!",
+        description: "Dobrodošli u GARD 018",
+        duration: 3000,
       })
+
+      setTimeout(() => {
+        router.push("/")
+        router.refresh()
+      }, 1000)
+    } catch (error) {
+      console.error("[v0] Registration error:", error)
+
+      if (error instanceof Error) {
+        if (error.name === "AbortError") {
+          toast({
+            title: "Greška",
+            description: "Registracija traje predugo. Proverite internet konekciju.",
+            variant: "destructive",
+            duration: 5000,
+          })
+        } else {
+          toast({
+            title: "Greška",
+            description: "Došlo je do greške. Pokušajte ponovo ili kontaktirajte podršku.",
+            variant: "destructive",
+            duration: 5000,
+          })
+        }
+      } else {
+        toast({
+          title: "Greška",
+          description: "Neočekivana greška pri registraciji. Pokušajte ponovo.",
+          variant: "destructive",
+          duration: 5000,
+        })
+      }
     } finally {
       setIsLoading(false)
     }
