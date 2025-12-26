@@ -3,13 +3,18 @@ import { neon } from "@neondatabase/serverless"
 import { Resend } from "resend"
 
 const sql = neon(process.env.DATABASE_URL!)
-const resend = new Resend("re_YGK6Q5mR_GvjsVUZVVyy5DSpJjj3DP2by")
+const resend = new Resend(process.env.RESEND_API_KEY!)
 
 // Generate random token
 function generateToken(): string {
   const array = new Uint8Array(32)
   crypto.getRandomValues(array)
   return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("")
+}
+
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
 }
 
 export async function POST(request: Request) {
@@ -23,8 +28,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email je obavezan" }, { status: 400 })
     }
 
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: "Nevažeća email adresa" }, { status: 400 })
+    }
+
+    const sanitizedEmail = email.toLowerCase().trim()
+
     // Check if user exists
-    const users = await sql`SELECT id, first_name, last_name FROM users WHERE email = ${email}`
+    const users = await sql`SELECT id, first_name, last_name FROM users WHERE email = ${sanitizedEmail}`
 
     console.log("[v0] User found:", users.length > 0)
 
@@ -42,22 +53,26 @@ export async function POST(request: Request) {
 
     console.log("[v0] Token generated, saving to database...")
 
-    // Save token to database
-    await sql`
-      INSERT INTO password_reset_tokens (email, token, expiry_date)
-      VALUES (${email}, ${token}, ${expiryDate.toISOString()})
-    `
+    try {
+      // Save token to database
+      await sql`
+        INSERT INTO password_reset_tokens (email, token, expiry_date)
+        VALUES (${sanitizedEmail}, ${token}, ${expiryDate.toISOString()})
+      `
+    } catch (dbError) {
+      console.error("[v0] Database error saving token:", dbError)
+      return NextResponse.json({ error: "Greška pri obradi zahteva" }, { status: 500 })
+    }
 
     // Create reset link
     const resetLink = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/reset-password?token=${token}`
 
     console.log("[v0] Sending email via Resend...")
 
-    // Send email via Resend
     try {
       const result = await resend.emails.send({
         from: "GARD 018 <onboarding@resend.dev>",
-        to: email,
+        to: sanitizedEmail,
         replyTo: "ognjen.boks19@gmail.com",
         subject: "Resetovanje lozinke - GARD 018",
         html: `
@@ -127,15 +142,25 @@ export async function POST(request: Request) {
         `,
       })
 
-      console.log("[v0] Resend result:", result)
+      console.log("[v0] Password reset email sent successfully:", {
+        email: sanitizedEmail,
+        emailId: result.data?.id,
+      })
     } catch (emailError) {
-      console.error("[v0] Resend email error:", emailError)
+      console.error("[v0] Resend email error:", {
+        email: sanitizedEmail,
+        error: emailError instanceof Error ? emailError.message : "Unknown error",
+        stack: emailError instanceof Error ? emailError.stack : undefined,
+      })
       return NextResponse.json({ error: "Greška pri slanju email-a" }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[v0] Forgot password error:", error)
+    console.error("[v0] Forgot password error:", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return NextResponse.json({ error: "Greška pri obradi zahteva" }, { status: 500 })
   }
 }

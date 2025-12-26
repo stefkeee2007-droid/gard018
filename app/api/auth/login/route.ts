@@ -10,6 +10,14 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email)
 }
 
+async function hashPasswordSHA256(password: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password)
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -26,7 +34,7 @@ export async function POST(request: Request) {
     const sanitizedEmail = email.toLowerCase().trim()
 
     const user = await sql`
-      SELECT id, email, first_name, last_name, password_hash
+      SELECT id, email, first_name, last_name, password_hash, password_hash_type
       FROM users 
       WHERE email = ${sanitizedEmail}
     `
@@ -36,8 +44,35 @@ export async function POST(request: Request) {
     }
 
     const userData = user[0]
+    let passwordMatch = false
 
-    const passwordMatch = await bcrypt.compare(password, userData.password_hash)
+    if (userData.password_hash_type === "sha256") {
+      // Legacy SHA-256 verification
+      const hashedPassword = await hashPasswordSHA256(password)
+      passwordMatch = hashedPassword === userData.password_hash
+
+      if (passwordMatch) {
+        try {
+          const newBcryptHash = await bcrypt.hash(password, 10)
+          await sql`
+            UPDATE users 
+            SET password_hash = ${newBcryptHash}, 
+                password_hash_type = 'bcrypt'
+            WHERE id = ${userData.id}
+          `
+          console.log(`[v0] User ${sanitizedEmail} auto-migrated from SHA-256 to bcrypt`)
+        } catch (migrationError) {
+          console.error("[v0] Failed to auto-migrate password hash:", {
+            userId: userData.id,
+            error: migrationError instanceof Error ? migrationError.message : "Unknown error",
+          })
+          // Don't fail login if migration fails - user can still log in with SHA-256
+        }
+      }
+    } else {
+      // Modern bcrypt verification
+      passwordMatch = await bcrypt.compare(password, userData.password_hash)
+    }
 
     if (!passwordMatch) {
       return NextResponse.json({ error: "Pogrešna lozinka ili email. Pokušajte ponovo." }, { status: 401 })
