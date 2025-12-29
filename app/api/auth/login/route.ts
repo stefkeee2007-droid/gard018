@@ -2,8 +2,14 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
 import bcrypt from "bcryptjs"
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const sql = neon(process.env.DATABASE_URL!)
+
+const loginLimiter = rateLimit({
+  limit: 5,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+})
 
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -20,6 +26,14 @@ async function hashPasswordSHA256(password: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown"
+    const rateLimitResult = await loginLimiter(ip)
+
+    if (!rateLimitResult.success) {
+      console.log("[v0] Login rate limit exceeded for IP:", ip)
+      return rateLimitResponse(rateLimitResult.reset)
+    }
+
     const body = await request.json()
     const { email, password } = body
 

@@ -23,51 +23,43 @@ export async function POST(request: Request) {
 
     const sanitizedToken = token.trim()
 
-    // Find token in database
-    const tokens = await sql`
-      SELECT email, expiry_date, used 
-      FROM password_reset_tokens 
-      WHERE token = ${sanitizedToken}
+    const users = await sql`
+      SELECT id, email, reset_token, reset_token_expiry
+      FROM users
+      WHERE reset_token IS NOT NULL 
+      AND reset_token_expiry > NOW()
     `
 
-    if (tokens.length === 0) {
-      return NextResponse.json({ error: "Nevažeći token" }, { status: 400 })
+    let matchedUser = null
+
+    for (const user of users) {
+      const isMatch = await bcrypt.compare(sanitizedToken, user.reset_token)
+      if (isMatch) {
+        matchedUser = user
+        break
+      }
     }
 
-    const resetToken = tokens[0]
-
-    // Check if token is expired
-    if (new Date(resetToken.expiry_date) < new Date()) {
-      return NextResponse.json({ error: "Token je istekao" }, { status: 400 })
-    }
-
-    // Check if token was already used
-    if (resetToken.used) {
-      return NextResponse.json({ error: "Token je već iskorišćen" }, { status: 400 })
+    if (!matchedUser) {
+      return NextResponse.json({ error: "Nevažeći ili istekao token" }, { status: 400 })
     }
 
     const passwordHash = await bcrypt.hash(password, 10)
 
     try {
-      // Update user password with bcrypt hash and set hash type
       await sql`
         UPDATE users 
         SET password_hash = ${passwordHash},
-            password_hash_type = 'bcrypt'
-        WHERE email = ${resetToken.email}
+            password_hash_type = 'bcrypt',
+            reset_token = NULL,
+            reset_token_expiry = NULL
+        WHERE id = ${matchedUser.id}
       `
 
-      // Mark token as used
-      await sql`
-        UPDATE password_reset_tokens 
-        SET used = true 
-        WHERE token = ${sanitizedToken}
-      `
-
-      console.log("[v0] Password successfully reset for:", resetToken.email)
+      console.log("[v0] Password successfully reset for:", matchedUser.email)
     } catch (dbError) {
       console.error("[v0] Database error during password reset:", {
-        email: resetToken.email,
+        email: matchedUser.email,
         error: dbError instanceof Error ? dbError.message : "Unknown error",
       })
       return NextResponse.json({ error: "Greška pri ažuriranju lozinke" }, { status: 500 })

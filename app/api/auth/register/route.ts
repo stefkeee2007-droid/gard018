@@ -2,8 +2,14 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
 import bcrypt from "bcryptjs"
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const sql = neon(process.env.DATABASE_URL!)
+
+const registerLimiter = rateLimit({
+  limit: 3,
+  windowMs: 60 * 60 * 1000, // 1 hour
+})
 
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -19,6 +25,14 @@ function sanitizeInput(input: string): string {
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown"
+    const rateLimitResult = await registerLimiter(ip)
+
+    if (!rateLimitResult.success) {
+      console.log("[v0] Registration rate limit exceeded for IP:", ip)
+      return rateLimitResponse(rateLimitResult.reset)
+    }
+
     const body = await request.json()
     const { email, password, firstName, lastName } = body
 
@@ -49,13 +63,14 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 10)
 
-    // Insert new user with hashed password
-    await sql`
-      INSERT INTO users (email, password_hash, first_name, last_name)
-      VALUES (${sanitizedEmail}, ${passwordHash}, ${sanitizedFirstName}, ${sanitizedLastName})
+    const result = await sql`
+      INSERT INTO users (email, password_hash, first_name, last_name, password_hash_type)
+      VALUES (${sanitizedEmail}, ${passwordHash}, ${sanitizedFirstName}, ${sanitizedLastName}, 'bcrypt')
+      RETURNING id, email, first_name, last_name
     `
 
-    // Create session
+    const newUser = result[0]
+
     const session = {
       user: {
         email: sanitizedEmail,
@@ -75,7 +90,11 @@ export async function POST(request: Request) {
 
     console.log("[v0] User registered successfully:", sanitizedEmail)
 
-    return NextResponse.json({ success: true, user: session.user })
+    return NextResponse.json({
+      success: true,
+      user: session.user,
+      userId: newUser.id,
+    })
   } catch (error) {
     console.error("[v0] Registration error:", {
       error: error instanceof Error ? error.message : "Unknown error",

@@ -1,35 +1,99 @@
 import { neon } from "@neondatabase/serverless"
+import { NextResponse } from "next/server"
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const sql = neon(process.env.DATABASE_URL!)
+
+const messageLimiter = rateLimit({
+  limit: 5,
+  windowMs: 60 * 60 * 1000, // 1 hour
+})
+
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+function sanitizeInput(input: string): string {
+  return input
+    .trim()
+    .replace(/[<>]/g, "") // Remove < and > characters to prevent XSS
+    .slice(0, 1000) // Limit length
+}
+
+function sanitizePhone(phone: string | null | undefined): string | null {
+  if (!phone) return null
+  return phone
+    .trim()
+    .replace(/[^\d+\s()-]/g, "") // Only allow digits, +, spaces, parentheses, and dashes
+    .slice(0, 20)
+}
 
 export async function GET() {
   try {
     const messages = await sql`SELECT * FROM messages ORDER BY created_at DESC`
     return Response.json({ messages })
   } catch (error) {
-    console.error("Error fetching messages:", error)
+    console.error("[v0] Error fetching messages:", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return Response.json({ error: "Failed to fetch messages" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown"
+    const rateLimitResult = await messageLimiter(ip)
+
+    if (!rateLimitResult.success) {
+      console.log("[v0] Rate limit exceeded for IP:", ip)
+      return rateLimitResponse(rateLimitResult.reset)
+    }
+
     const { name, email, phone, message } = await request.json()
 
     if (!name || !email || !message) {
-      return Response.json({ error: "Name, email, and message are required" }, { status: 400 })
+      return NextResponse.json({ error: "Ime, email i poruka su obavezni" }, { status: 400 })
+    }
+
+    if (typeof name !== "string" || typeof email !== "string" || typeof message !== "string") {
+      return NextResponse.json({ error: "Nevažeći tip podataka" }, { status: 400 })
+    }
+
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: "Nevažeći email format" }, { status: 400 })
+    }
+
+    const sanitizedName = sanitizeInput(name)
+    const sanitizedEmail = sanitizeInput(email.toLowerCase())
+    const sanitizedMessage = sanitizeInput(message)
+    const sanitizedPhone = sanitizePhone(phone)
+
+    if (sanitizedName.length < 2 || sanitizedName.length > 100) {
+      return NextResponse.json({ error: "Ime mora biti između 2 i 100 karaktera" }, { status: 400 })
+    }
+
+    if (sanitizedMessage.length < 10 || sanitizedMessage.length > 1000) {
+      return NextResponse.json({ error: "Poruka mora biti između 10 i 1000 karaktera" }, { status: 400 })
     }
 
     const result = await sql`
       INSERT INTO messages (name, email, phone, message)
-      VALUES (${name}, ${email}, ${phone || null}, ${message})
+      VALUES (${sanitizedName}, ${sanitizedEmail}, ${sanitizedPhone}, ${sanitizedMessage})
       RETURNING *
     `
 
-    return Response.json({ message: result[0] })
+    console.log("[v0] Message created successfully from:", sanitizedEmail)
+
+    return NextResponse.json({ message: result[0] })
   } catch (error) {
-    console.error("Error sending message:", error)
-    return Response.json({ error: "Failed to send message" }, { status: 500 })
+    console.error("[v0] Error sending message:", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    return NextResponse.json({ error: "Greška pri slanju poruke. Pokušajte ponovo." }, { status: 500 })
   }
 }
 
@@ -38,14 +102,23 @@ export async function PATCH(request: Request) {
     const { id, status } = await request.json()
 
     if (!id || !status) {
-      return Response.json({ error: "ID and status are required" }, { status: 400 })
+      return NextResponse.json({ error: "ID i status su obavezni" }, { status: 400 })
+    }
+
+    if (!["read", "unread"].includes(status)) {
+      return NextResponse.json({ error: "Nevažeći status" }, { status: 400 })
     }
 
     await sql`UPDATE messages SET status = ${status} WHERE id = ${id}`
 
-    return Response.json({ success: true })
+    console.log("[v0] Message status updated:", { id, status })
+
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error updating message:", error)
-    return Response.json({ error: "Failed to update message" }, { status: 500 })
+    console.error("[v0] Error updating message:", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    return NextResponse.json({ error: "Greška pri ažuriranju poruke" }, { status: 500 })
   }
 }

@@ -2,11 +2,30 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { neon } from "@neondatabase/serverless"
 import crypto from "crypto"
+import bcrypt from "bcrypt"
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const sql = neon(process.env.DATABASE_URL!)
 
+const forgotPasswordLimiter = rateLimit({
+  limit: 3,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+})
+
+async function hashToken(token: string): Promise<string> {
+  return await bcrypt.hash(token, 10)
+}
+
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown"
+    const rateLimitResult = await forgotPasswordLimiter(ip)
+
+    if (!rateLimitResult.success) {
+      console.log("[v0] Forgot password rate limit exceeded for IP:", ip)
+      return rateLimitResponse(rateLimitResult.reset)
+    }
+
     const body = await req.json()
     const { email } = body
 
@@ -39,17 +58,18 @@ export async function POST(req: Request) {
     const user = users[0]
 
     const resetToken = crypto.randomBytes(32).toString("hex")
+    const hashedToken = await hashToken(resetToken)
     const resetTokenExpiry = new Date(Date.now() + 3600000) // 1 sat od sada
 
     await sql`
       UPDATE users 
       SET 
-        reset_token = ${resetToken},
+        reset_token = ${hashedToken},
         reset_token_expiry = ${resetTokenExpiry.toISOString()}
       WHERE id = ${user.id}
     `
 
-    console.log("[v0] Reset token generated and saved for user:", user.id)
+    console.log("[v0] Hashed reset token generated and saved for user:", user.id)
 
     const apiKey = process.env.RESEND_API_KEY
 

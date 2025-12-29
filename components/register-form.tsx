@@ -126,27 +126,30 @@ export function RegisterForm() {
     try {
       let startDate = null
       let expiryDate = null
+      let status = "expired"
 
       if (membershipPaid === "paid" && formData.paymentDate) {
         const [day, month, year] = formData.paymentDate.split("/")
 
-        // Ensure zero-padding
         const paddedDay = day.padStart(2, "0")
         const paddedMonth = month.padStart(2, "0")
 
-        // Format to ISO (YYYY-MM-DD) for database
         startDate = `${year}-${paddedMonth}-${paddedDay}`
 
-        // Calculate expiry date (1 month later)
         const expiry = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
         expiry.setMonth(expiry.getMonth() + 1)
         expiryDate = expiry.toISOString().split("T")[0]
+        status = "active"
+      } else {
+        startDate = new Date().toISOString().split("T")[0]
+        expiryDate = new Date().toISOString().split("T")[0]
+        status = "expired"
       }
 
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-      const registerResponse = await fetch("/api/auth/register", {
+      const registerResponse = await fetch("/api/auth/register-with-membership", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -154,6 +157,11 @@ export function RegisterForm() {
           password: formData.password,
           firstName: formData.firstName,
           lastName: formData.lastName,
+          membershipData: {
+            startDate,
+            expiryDate,
+            status,
+          },
         }),
         signal: controller.signal,
       })
@@ -175,29 +183,6 @@ export function RegisterForm() {
         }
         setIsLoading(false)
         return
-      }
-
-      const memberResponse = await fetch("/api/members", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          email: formData.email,
-          start_date: startDate || new Date().toISOString().split("T")[0],
-          expiry_date: expiryDate || new Date().toISOString().split("T")[0],
-          status: membershipPaid === "paid" ? "active" : "expired",
-        }),
-      })
-
-      if (!memberResponse.ok) {
-        console.error("[v0] Member creation failed after successful registration")
-        toast({
-          title: "Upozorenje",
-          description: "Nalog je kreiran, ali došlo je do problema sa članarinom. Kontaktirajte administratora.",
-          variant: "destructive",
-          duration: 8000,
-        })
       }
 
       toast({
