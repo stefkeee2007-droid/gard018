@@ -3,7 +3,6 @@ import { neon } from "@neondatabase/serverless"
 import { Resend } from "resend"
 
 const sql = neon(process.env.DATABASE_URL!)
-const resend = new Resend(process.env.RESEND_API_KEY!)
 
 // Generate random token
 function generateToken(): string {
@@ -33,6 +32,17 @@ export async function POST(request: Request) {
     }
 
     const sanitizedEmail = email.toLowerCase().trim()
+
+    const apiKey = process.env.RESEND_API_KEY
+    console.log("[v0] Debug Resend Key:", apiKey ? `Postoji (dužina: ${apiKey.length})` : "NEDOSTAJE/UNDEFINED")
+
+    if (!apiKey || !apiKey.startsWith("re_")) {
+      console.error("[v0] KRITIČNA GREŠKA: API ključ nije validnog formata!")
+      console.error("[v0] API Key value:", apiKey?.substring(0, 10) + "...")
+      return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
+    }
+
+    const resend = new Resend(apiKey)
 
     // Check if user exists
     const users = await sql`SELECT id, first_name, last_name FROM users WHERE email = ${sanitizedEmail}`
@@ -68,6 +78,7 @@ export async function POST(request: Request) {
     const resetLink = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/reset-password?token=${token}`
 
     console.log("[v0] Sending email via Resend...")
+    console.log("[v0] Reset link:", resetLink)
 
     try {
       const result = await resend.emails.send({
@@ -142,15 +153,21 @@ export async function POST(request: Request) {
         `,
       })
 
+      if (!result.data?.id) {
+        console.error("[v0] Resend returned no email ID:", result)
+        return NextResponse.json({ error: "Greška pri slanju email-a" }, { status: 500 })
+      }
+
       console.log("[v0] Password reset email sent successfully:", {
         email: sanitizedEmail,
-        emailId: result.data?.id,
+        emailId: result.data.id,
       })
     } catch (emailError) {
       console.error("[v0] Resend email error:", {
         email: sanitizedEmail,
         error: emailError instanceof Error ? emailError.message : "Unknown error",
         stack: emailError instanceof Error ? emailError.stack : undefined,
+        fullError: emailError,
       })
       return NextResponse.json({ error: "Greška pri slanju email-a" }, { status: 500 })
     }
