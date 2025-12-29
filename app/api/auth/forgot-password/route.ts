@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
-import { sql } from "@vercel/postgres"
-import crypto from "node:crypto"
+import { neon } from "@neondatabase/serverless"
+import crypto from "crypto"
 
-function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailRegex.test(email)
-}
-
-function sanitizeEmail(email: string): string {
-  return email.toLowerCase().trim().substring(0, 255)
-}
+const sql = neon(process.env.DATABASE_URL!)
 
 export async function POST(req: Request) {
   try {
@@ -21,105 +14,119 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email je obavezan" }, { status: 400 })
     }
 
-    const sanitizedEmail = sanitizeEmail(email)
-
-    if (!isValidEmail(sanitizedEmail)) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
       return NextResponse.json({ error: "Nevažeći email format" }, { status: 400 })
     }
 
-    console.log("[v0] Forgot password request for:", sanitizedEmail)
+    console.log("[v0] Forgot password request for:", email)
+
+    const users = await sql`
+      SELECT id, email, first_name, last_name 
+      FROM users 
+      WHERE LOWER(email) = LOWER(${email})
+    `
+
+    if (users.length === 0) {
+      // Iz sigurnosnih razloga, ne otkrivamo da korisnik ne postoji
+      console.log("[v0] User not found, but returning success to prevent email enumeration")
+      return NextResponse.json({
+        success: true,
+        message: "Ako email postoji u našem sistemu, poslaćemo vam link za resetovanje",
+      })
+    }
+
+    const user = users[0]
+
+    const resetToken = crypto.randomBytes(32).toString("hex")
+    const resetTokenExpiry = new Date(Date.now() + 3600000) // 1 sat od sada
+
+    await sql`
+      UPDATE users 
+      SET 
+        reset_token = ${resetToken},
+        reset_token_expiry = ${resetTokenExpiry.toISOString()}
+      WHERE id = ${user.id}
+    `
+
+    console.log("[v0] Reset token generated and saved for user:", user.id)
 
     const apiKey = process.env.RESEND_API_KEY
 
-    if (!apiKey || !apiKey.startsWith("re_")) {
-      console.error("[v0] KRITIČNA GREŠKA: RESEND_API_KEY nije postavljen ili je nevažeći!")
-      return NextResponse.json({ error: "Server nije pravilno konfigurisan" }, { status: 500 })
+    if (!apiKey) {
+      console.error("[v0] KRITIČNA GREŠKA: RESEND_API_KEY nije pronađen!")
+      return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
     }
+
+    console.log("[v0] Resend API Key found, length:", apiKey.length)
 
     const resend = new Resend(apiKey)
 
-    let result
-    try {
-      result = await sql`SELECT id, email FROM users WHERE email = ${sanitizedEmail}`
-    } catch (dbError) {
-      console.error("[v0] Database error while finding user:", dbError)
-      return NextResponse.json({ error: "Greška pri pristupu bazi podataka" }, { status: 500 })
-    }
-
-    if (result.rows.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "Ako nalog postoji, link za resetovanje je poslat na email",
-      })
-    }
-
-    const userId = result.rows[0].id
-    const token = crypto.randomBytes(32).toString("hex")
-    const expiresAt = new Date(Date.now() + 3600000).toISOString() // 1 sat
-
-    console.log("[v0] Token generated, saving to database...")
-
-    try {
-      await sql`
-        INSERT INTO password_resets (user_id, token, expires_at)
-        VALUES (${userId}, ${token}, ${expiresAt})
-      `
-    } catch (dbError) {
-      console.error("[v0] Database error while saving token:", dbError)
-      return NextResponse.json({ error: "Greška pri generisanju linka za resetovanje" }, { status: 500 })
-    }
-
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
-    const resetLink = `${baseUrl}/reset-password?token=${token}`
+    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`
 
-    console.log("[v0] Sending email via Resend...")
+    console.log("[v0] Reset URL generated:", resetUrl)
 
-    try {
-      const { data, error } = await resend.emails.send({
-        from: "GARD 018 <onboarding@resend.dev>",
-        to: sanitizedEmail,
-        subject: "Resetovanje lozinke - GARD 018",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #ef4444;">Resetovanje lozinke</h2>
-            <p>Zatražili ste resetovanje lozinke za vaš GARD 018 nalog.</p>
-            <p>Kliknite na dugme ispod da resetujete lozinku:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetLink}" style="display: inline-block; background-color: #ef4444; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                Resetuj lozinku
-              </a>
+    const emailResult = await resend.emails.send({
+      from: "GARD 018 Boks Klub <onboarding@resend.dev>",
+      to: email,
+      subject: "Resetovanje lozinke - GARD 018",
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+              .button { display: inline-block; padding: 15px 30px; background: #DC2626; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+              .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🥊 GARD 018</h1>
+                <p>Boks i Kikboks Klub</p>
+              </div>
+              <div class="content">
+                <h2>Zdravo ${user.first_name}!</h2>
+                <p>Primili smo zahtev za resetovanje vaše lozinke.</p>
+                <p>Kliknite na dugme ispod da biste kreirali novu lozinku:</p>
+                <center>
+                  <a href="${resetUrl}" class="button">Resetuj lozinku</a>
+                </center>
+                <p><strong>Link je važeći 1 sat.</strong></p>
+                <p>Ako niste vi zatražili resetovanje lozinke, ignorišite ovaj email.</p>
+                <p style="font-size: 12px; color: #666; margin-top: 30px;">
+                  Ako dugme ne radi, kopirajte sledeći link u pretraživač:<br>
+                  <code style="background: #e0e0e0; padding: 5px 10px; border-radius: 3px; word-break: break-all;">${resetUrl}</code>
+                </p>
+              </div>
+              <div class="footer">
+                <p>© 2025 GARD 018 Boks i Kikboks Klub. Sva prava zadržana.</p>
+              </div>
             </div>
-            <p>Ili kopirajte ovaj link u pretraživač:</p>
-            <p style="word-break: break-all; color: #666; background: #f5f5f5; padding: 10px; border-radius: 4px;">${resetLink}</p>
-            <p style="color: #ef4444;"><strong>⚠️ Link ističe za 1 sat.</strong></p>
-            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-            <p style="color: #999; font-size: 14px;">Ako niste tražili resetovanje lozinke, možete ignorisati ovaj email. Vaša lozinka neće biti promenjena.</p>
-          </div>
-        `,
-      })
+          </body>
+        </html>
+      `,
+    })
 
-      if (error) {
-        console.error("[v0] Resend API error:", error)
-        return NextResponse.json({ error: "Greška pri slanju emaila" }, { status: 500 })
-      }
-
-      if (!data?.id) {
-        console.error("[v0] Resend returned no email ID")
-        return NextResponse.json({ error: "Email nije uspešno poslat" }, { status: 500 })
-      }
-
-      console.log("[v0] Email sent successfully! Email ID:", data.id)
-
-      return NextResponse.json({
-        success: true,
-        message: "Link za resetovanje lozinke je poslat na vaš email",
-      })
-    } catch (emailError: any) {
-      console.error("[v0] Error sending email:", emailError)
-      return NextResponse.json({ error: "Neuspelo slanje emaila" }, { status: 500 })
+    if (emailResult.error) {
+      console.error("[v0] Resend API error:", emailResult.error)
+      return NextResponse.json({ error: "Greška pri slanju email-a: " + emailResult.error.message }, { status: 500 })
     }
-  } catch (error: any) {
+
+    console.log("[v0] Email successfully sent! ID:", emailResult.data?.id)
+
+    return NextResponse.json({
+      success: true,
+      message: "Link za resetovanje lozinke je poslat na vašu email adresu",
+    })
+  } catch (error) {
     console.error("[v0] Unexpected error in forgot-password:", error)
-    return NextResponse.json({ error: "Interna greška servera" }, { status: 500 })
+    return NextResponse.json({ error: "Neočekivana greška na serveru" }, { status: 500 })
   }
 }
