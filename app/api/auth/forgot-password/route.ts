@@ -82,6 +82,21 @@ export async function POST(req: Request) {
     }
 
     console.log("[v0] Resend API Key found, length:", apiKey.length)
+    console.log("[v0] API Key format check:", {
+      startsWithRe: apiKey.startsWith("re_"),
+      firstChars: apiKey.substring(0, 3),
+      lastChars: apiKey.substring(apiKey.length - 3),
+    })
+
+    if (!apiKey.startsWith("re_")) {
+      console.error("[v0] API Key ne počinje sa 're_' - ključ je NEVAŽEĆI!")
+      return NextResponse.json(
+        {
+          error: "Resend API ključ nije ispravno konfigurisan. Molimo kontaktirajte administratora.",
+        },
+        { status: 500 },
+      )
+    }
 
     const resend = new Resend(apiKey)
 
