@@ -27,11 +27,14 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { email } = body
+    let { email } = body
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Email je obavezan" }, { status: 400 })
     }
+
+    // Normalize email to lowercase
+    email = email.toLowerCase().trim()
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
@@ -43,7 +46,7 @@ export async function POST(req: Request) {
     const users = await sql`
       SELECT id, email, first_name, last_name 
       FROM users 
-      WHERE LOWER(email) = LOWER(${email})
+      WHERE email = ${email}
     `
 
     if (users.length === 0) {
