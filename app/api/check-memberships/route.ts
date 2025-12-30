@@ -5,6 +5,8 @@ import { Resend } from "resend"
 const sql = neon(process.env.DATABASE_URL!)
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export async function GET(request: Request) {
   // Verify cron secret to prevent unauthorized access
   const authHeader = request.headers.get("authorization")
@@ -55,6 +57,11 @@ export async function GET(request: Request) {
             reason: "Email sending failed",
           })
           console.error(`[v0] Failed to send email to ${member.email}, database NOT updated`)
+        }
+
+        if (expiredMembers.indexOf(member) < expiredMembers.length - 1) {
+          console.log("[v0] Pauza pre sledećeg slanja... (500ms)")
+          await sleep(500)
         }
       } catch (memberError) {
         console.error(`[v0] Error processing member ${member.email}:`, memberError)
