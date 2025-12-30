@@ -7,14 +7,12 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Sending test email to:", email)
     console.log("[v0] RESEND_API_KEY exists:", !!process.env.RESEND_API_KEY)
-    console.log("[v0] RESEND_API_KEY length:", process.env.RESEND_API_KEY?.length)
-    console.log("[v0] RESEND_API_KEY first 10 chars:", process.env.RESEND_API_KEY?.substring(0, 10))
 
-    const apiKey = "re_YGK6Q5mR_GvjsVUZVVyy5DSpJjj3DP2by"
-    console.log("[v0] Using hardcoded API key for v0 preview testing")
-    console.log("[v0] Hardcoded key length:", apiKey.length)
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY is not configured")
+    }
 
-    const resend = new Resend(apiKey)
+    const resend = new Resend(process.env.RESEND_API_KEY)
 
     const { data, error } = await resend.emails.send({
       from: "GARD 018 Borilački Klub <onboarding@resend.dev>",
@@ -32,23 +30,18 @@ export async function POST(request: NextRequest) {
             <tr>
               <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <!-- Header -->
                   <tr>
                     <td style="background-color: #8f1528; padding: 30px 40px; text-align: center;">
                       <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: normal;">GARD 018</h1>
                       <p style="margin: 5px 0 0 0; color: #ffffff; font-size: 14px;">Borilački Klub</p>
                     </td>
                   </tr>
-                  
-                  <!-- Content -->
                   <tr>
                     <td style="padding: 40px;">
                       <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 1.6;">Poštovani,</p>
-                      
                       <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 1.6;">
                         Obaveštavamo vas da vaša članarina ističe za 3 dana.
                       </p>
-                      
                       <table width="100%" cellpadding="15" style="background-color: #f9f9f9; border-left: 4px solid #8f1528; margin: 20px 0;">
                         <tr>
                           <td>
@@ -57,13 +50,10 @@ export async function POST(request: NextRequest) {
                           </td>
                         </tr>
                       </table>
-                      
                       <p style="margin: 0 0 30px 0; color: #333333; font-size: 16px; line-height: 1.6;">
                         Molimo vas da obnovite članarinu kako biste nastavili sa treninzima.
                       </p>
-                      
                       <h2 style="margin: 0 0 15px 0; color: #8f1528; font-size: 18px;">Kontakt informacije</h2>
-                      
                       <p style="margin: 0 0 10px 0; color: #333333; font-size: 14px; line-height: 1.8;">
                         <strong>Telefon:</strong> 069 010 5213<br>
                         <strong>Email:</strong> ognjen.boks19@gmail.com<br>
@@ -71,8 +61,6 @@ export async function POST(request: NextRequest) {
                       </p>
                     </td>
                   </tr>
-                  
-                  <!-- Footer -->
                   <tr>
                     <td style="padding: 30px 40px; background-color: #f9f9f9; border-top: 1px solid #eeeeee; text-align: center;">
                       <p style="margin: 0 0 5px 0; color: #666666; font-size: 14px;">Hvala što ste deo GARD 018 porodice!</p>

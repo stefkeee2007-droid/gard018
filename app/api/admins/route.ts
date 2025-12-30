@@ -46,10 +46,6 @@ export async function DELETE(request: Request) {
       return Response.json({ error: "Email is required" }, { status: 400 })
     }
 
-    if (email === "stefkeee2007@gmail.com") {
-      return Response.json({ error: "Cannot remove primary admin" }, { status: 403 })
-    }
-
     await sql`DELETE FROM admins WHERE email = ${email}`
 
     return Response.json({ success: true })

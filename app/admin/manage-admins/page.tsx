@@ -156,16 +156,14 @@ export default function ManageAdminsPage() {
                       Dodelio: {admin.granted_by} • {new Date(admin.created_at).toLocaleDateString("sr-RS")}
                     </p>
                   </div>
-                  {admin.email !== "stefkeee2007@gmail.com" && (
-                    <Button
-                      onClick={() => removeAdmin(admin.email)}
-                      variant="outline"
-                      size="sm"
-                      className="border-red-500/20 text-red-500 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <Button
+                    onClick={() => removeAdmin(admin.email)}
+                    variant="outline"
+                    size="sm"
+                    className="border-red-500/20 text-red-500 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
             </div>
