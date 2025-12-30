@@ -3,7 +3,8 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
 const sql = neon(process.env.DATABASE_URL!)
-const resend = new Resend(process.env.RESEND_API_KEY!)
+
+const resend = new Resend(process.env.RESEND_API_KEY || "re_XoRzT6q9_EKAmAxcohVgrseiQpAghBGRA")
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 

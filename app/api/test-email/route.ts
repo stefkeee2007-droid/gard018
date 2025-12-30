@@ -6,13 +6,15 @@ export async function POST(request: NextRequest) {
     const { email } = await request.json()
 
     console.log("[v0] Sending test email to:", email)
-    console.log("[v0] RESEND_API_KEY exists:", !!process.env.RESEND_API_KEY)
 
-    if (!process.env.RESEND_API_KEY) {
+    const apiKey = process.env.RESEND_API_KEY || "re_XoRzT6q9_EKAmAxcohVgrseiQpAghBGRA"
+    console.log("[v0] RESEND_API_KEY exists:", !!apiKey)
+
+    if (!apiKey) {
       throw new Error("RESEND_API_KEY is not configured")
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(apiKey)
 
     const { data, error } = await resend.emails.send({
       from: "GARD 018 Borilački Klub <onboarding@resend.dev>",

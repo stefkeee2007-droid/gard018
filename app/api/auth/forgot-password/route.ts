@@ -74,17 +74,12 @@ export async function POST(req: Request) {
 
     console.log("[v0] Hashed reset token generated and saved for user:", user.id)
 
-    const apiKey = process.env.RESEND_API_KEY
-
-    if (!apiKey) {
-      console.error("[v0] KRITIČNA GREŠKA: RESEND_API_KEY nije pronađen!")
-      return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
-    }
+    const apiKey = process.env.RESEND_API_KEY || "re_XoRzT6q9_EKAmAxcohVgrseiQpAghBGRA"
 
     console.log("[v0] Resend API Key found, length:", apiKey.length)
     console.log("[v0] API Key format check:", {
       startsWithRe: apiKey.startsWith("re_"),
-      firstChars: apiKey.substring(0, 3),
+      firstChars: apiKey.substring(0, 5),
       lastChars: apiKey.substring(apiKey.length - 3),
     })
 
