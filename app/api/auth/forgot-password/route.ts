@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { neon } from "@neondatabase/serverless"
 import crypto from "crypto"
-import bcrypt from "bcrypt"
+import bcrypt from "bcryptjs"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const sql = neon(process.env.DATABASE_URL!)
