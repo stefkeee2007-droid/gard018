@@ -4,12 +4,11 @@ import { Resend } from "resend"
 
 const sql = neon(process.env.DATABASE_URL!)
 
-const resend = new Resend(process.env.RESEND_API_KEY || "re_XoRzT6q9_EKAmAxcohVgrseiQpAghBGRA")
+const resend = new Resend(process.env.RESEND_API_KEY!)
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export async function GET(request: Request) {
-  // Verify cron secret to prevent unauthorized access
   const authHeader = request.headers.get("authorization")
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new Response("Unauthorized", { status: 401 })
@@ -23,19 +22,15 @@ export async function GET(request: Request) {
       AND status = 'active'
     `
 
-    console.log("[v0] Found expired members:", expiredMembers.length)
+    console.log("[GARD018] Found expired members:", expiredMembers.length)
 
     const notifications = []
     const failed = []
 
     for (const member of expiredMembers) {
       try {
-        console.log(`[v0] Processing member: ${member.email}`)
-
-        // Step 1: Attempt to send email first
         const emailSent = await sendExpiryEmail(member)
 
-        // Step 2: Only update database if email was sent successfully
         if (emailSent) {
           await sql`
             UPDATE members
@@ -49,23 +44,22 @@ export async function GET(request: Request) {
             expiryDate: member.expiry_date,
           })
 
-          console.log(`[v0] Successfully processed ${member.email}`)
+          console.log(`[GARD018] Successfully processed ${member.email}`)
         } else {
-          // Email failed, do NOT update database
           failed.push({
             member: `${member.first_name} ${member.last_name}`,
             email: member.email,
             reason: "Email sending failed",
           })
-          console.error(`[v0] Failed to send email to ${member.email}, database NOT updated`)
+          console.error(`[GARD018] Failed to send email to ${member.email}, database NOT updated`)
         }
 
         if (expiredMembers.indexOf(member) < expiredMembers.length - 1) {
-          console.log("[v0] Pauza pre sledećeg slanja... (500ms)")
+          console.log("[GARD018] Pauza pre sledećeg slanja... (500ms)")
           await sleep(500)
         }
       } catch (memberError) {
-        console.error(`[v0] Error processing member ${member.email}:`, memberError)
+        console.error(`[GARD018] Error processing member ${member.email}:`, memberError)
         failed.push({
           member: `${member.first_name} ${member.last_name}`,
           email: member.email,
@@ -82,7 +76,7 @@ export async function GET(request: Request) {
       failed: failed.length > 0 ? failed : undefined,
     })
   } catch (error) {
-    console.error("[v0] Critical error checking memberships:", error)
+    console.error("[GARD018] Critical error checking memberships:", error)
     return NextResponse.json(
       {
         success: false,
@@ -99,9 +93,9 @@ async function sendExpiryEmail(member: any): Promise<boolean> {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
 
     const { data, error } = await resend.emails.send({
-      from: "GARD 018 Borilački Klub <ognjen.boks19@gmail.com>",
+      from: "GARD 018 <info@gard018.com>",
       to: member.email,
-      replyTo: "ognjen.boks19@gmail.com",
+      replyTo: "info@gard018.com",
       subject: "Obaveštenje - Istekla članarina - GARD 018",
       html: `
         <!DOCTYPE html>
@@ -149,11 +143,11 @@ async function sendExpiryEmail(member: any): Promise<boolean> {
                         <p>Za obnovu članarine i dodatne informacije, slobodno nas kontaktirajte:</p>
                         <ul class="contact-list">
                           <li><strong>Telefon:</strong> +381 62 202 420</li>
-                          <li><strong>Email:</strong> ognjen.boks19@gmail.com</li>
+                          <li><strong>Email:</strong> info@gard018.com</li>
                           <li><strong>Adresa:</strong> Niš, Srbija</li>
                         </ul>
 
-                        <a href="mailto:ognjen.boks19@gmail.com" class="button">Kontaktirajte nas</a>
+                        <a href="mailto:info@gard018.com" class="button">Kontaktirajte nas</a>
 
                         <p style="margin-top: 30px; color: #666; font-size: 14px;">
                           Radujemo se vašem povratku u klub!
@@ -166,7 +160,7 @@ async function sendExpiryEmail(member: any): Promise<boolean> {
                         <p>Niš, Srbija | +381 62 202 420</p>
                         <p style="margin-top: 15px;">
                           Ova poruka je poslata automatski jer je vaša članarina istekla.<br>
-                          Ako imate pitanja, kontaktirajte nas na ognjen.boks19@gmail.com
+                          Ako imate pitanja, kontaktirajte nas na info@gard018.com
                         </p>
                       </td>
                     </tr>
@@ -180,25 +174,22 @@ async function sendExpiryEmail(member: any): Promise<boolean> {
     })
 
     if (error) {
-      console.error("[v0] Resend API error details:", {
+      console.error("[GARD018] Resend API error:", {
         memberEmail: member.email,
-        errorName: error.name,
         errorMessage: error.message,
-        fullError: JSON.stringify(error),
       })
       return false
     }
 
-    console.log("[v0] Email sent successfully via Resend:", {
+    console.log("[GARD018] Email sent successfully:", {
       memberEmail: member.email,
       emailId: data?.id,
     })
     return true
   } catch (error) {
-    console.error("[v0] Unexpected error in sendExpiryEmail:", {
+    console.error("[GARD018] Unexpected error in sendExpiryEmail:", {
       memberEmail: member.email,
       error: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
     })
     return false
   }

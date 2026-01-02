@@ -9,7 +9,7 @@ const sql = neon(process.env.DATABASE_URL!)
 
 const forgotPasswordLimiter = rateLimit({
   limit: 3,
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
 })
 
 async function hashToken(token: string): Promise<string> {
@@ -22,7 +22,6 @@ export async function POST(req: Request) {
     const rateLimitResult = await forgotPasswordLimiter(ip)
 
     if (!rateLimitResult.success) {
-      console.log("[v0] Forgot password rate limit exceeded for IP:", ip)
       return rateLimitResponse(rateLimitResult.reset)
     }
 
@@ -33,15 +32,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email je obavezan" }, { status: 400 })
     }
 
-    // Normalize email to lowercase
     email = email.toLowerCase().trim()
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
       return NextResponse.json({ error: "Nevažeći email format" }, { status: 400 })
     }
-
-    console.log("[v0] Forgot password request for:", email)
 
     const users = await sql`
       SELECT id, email, first_name, last_name 
@@ -50,8 +46,6 @@ export async function POST(req: Request) {
     `
 
     if (users.length === 0) {
-      // Iz sigurnosnih razloga, ne otkrivamo da korisnik ne postoji
-      console.log("[v0] User not found, but returning success to prevent email enumeration")
       return NextResponse.json({
         success: true,
         message: "Ako email postoji u našem sistemu, poslaćemo vam link za resetovanje",
@@ -62,7 +56,7 @@ export async function POST(req: Request) {
 
     const resetToken = crypto.randomBytes(32).toString("hex")
     const hashedToken = await hashToken(resetToken)
-    const resetTokenExpiry = new Date(Date.now() + 3600000) // 1 sat od sada
+    const resetTokenExpiry = new Date(Date.now() + 3600000)
 
     await sql`
       UPDATE users 
@@ -72,23 +66,12 @@ export async function POST(req: Request) {
       WHERE id = ${user.id}
     `
 
-    console.log("[v0] Hashed reset token generated and saved for user:", user.id)
+    const apiKey = process.env.RESEND_API_KEY
 
-    const apiKey = process.env.RESEND_API_KEY || "re_XoRzT6q9_EKAmAxcohVgrseiQpAghBGRA"
-
-    console.log("[v0] Resend API Key found, length:", apiKey.length)
-    console.log("[v0] API Key format check:", {
-      startsWithRe: apiKey.startsWith("re_"),
-      firstChars: apiKey.substring(0, 5),
-      lastChars: apiKey.substring(apiKey.length - 3),
-    })
-
-    if (!apiKey.startsWith("re_")) {
-      console.error("[v0] API Key ne počinje sa 're_' - ključ je NEVAŽEĆI!")
+    if (!apiKey || !apiKey.startsWith("re_")) {
+      console.error("[GARD018] Resend API key not configured properly")
       return NextResponse.json(
-        {
-          error: "Resend API ključ nije ispravno konfigurisan. Molimo kontaktirajte administratora.",
-        },
+        { error: "Email servis nije konfigurisan. Kontaktirajte administratora." },
         { status: 500 },
       )
     }
@@ -98,10 +81,8 @@ export async function POST(req: Request) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
     const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`
 
-    console.log("[v0] Reset URL generated:", resetUrl)
-
     const emailResult = await resend.emails.send({
-      from: "GARD 018 Boks Klub <ognjen.boks19@gmail.com>",
+      from: "GARD 018 <info@gard018.com>",
       to: email,
       subject: "Resetovanje lozinke - GARD 018",
       html: `
@@ -140,6 +121,7 @@ export async function POST(req: Request) {
               </div>
               <div class="footer">
                 <p>© 2025 GARD 018 Boks i Kikboks Klub. Sva prava zadržana.</p>
+                <p>Kontakt: info@gard018.com | +381 62 202 420</p>
               </div>
             </div>
           </body>
@@ -148,18 +130,16 @@ export async function POST(req: Request) {
     })
 
     if (emailResult.error) {
-      console.error("[v0] Resend API error:", emailResult.error)
-      return NextResponse.json({ error: "Greška pri slanju email-a: " + emailResult.error.message }, { status: 500 })
+      console.error("[GARD018] Email sending failed:", emailResult.error.message)
+      return NextResponse.json({ error: "Greška pri slanju email-a. Pokušajte ponovo." }, { status: 500 })
     }
-
-    console.log("[v0] Email successfully sent! ID:", emailResult.data?.id)
 
     return NextResponse.json({
       success: true,
       message: "Link za resetovanje lozinke je poslat na vašu email adresu",
     })
   } catch (error) {
-    console.error("[v0] Unexpected error in forgot-password:", error)
+    console.error("[GARD018] Unexpected error in forgot-password:", error)
     return NextResponse.json({ error: "Neočekivana greška na serveru" }, { status: 500 })
   }
 }
