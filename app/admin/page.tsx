@@ -14,6 +14,7 @@ interface Member {
   start_date: string
   expiry_date: string
   status: string
+  membership_type?: string
   created_at: string
 }
 
