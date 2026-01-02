@@ -99,7 +99,7 @@ async function sendExpiryEmail(member: any): Promise<boolean> {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
 
     const { data, error } = await resend.emails.send({
-      from: "GARD 018 Borilački Klub <onboarding@resend.dev>",
+      from: "GARD 018 Borilački Klub <ognjen.boks19@gmail.com>",
       to: member.email,
       replyTo: "ognjen.boks19@gmail.com",
       subject: "Obaveštenje - Istekla članarina - GARD 018",

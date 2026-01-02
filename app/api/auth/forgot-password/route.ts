@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     console.log("[v0] Reset URL generated:", resetUrl)
 
     const emailResult = await resend.emails.send({
-      from: "GARD 018 Boks Klub <onboarding@resend.dev>",
+      from: "GARD 018 Boks Klub <ognjen.boks19@gmail.com>",
       to: email,
       subject: "Resetovanje lozinke - GARD 018",
       html: `
