@@ -4,6 +4,7 @@ import { Calendar, Mail, User, AlertCircle, CheckCircle, Trash2 } from "lucide-r
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
+import { Badge } from "@/components/ui/badge"
 
 interface Member {
   id: number
@@ -13,6 +14,7 @@ interface Member {
   start_date: string
   expiry_date: string
   status: string
+  membership_type?: string
   created_at: string
 }
 
@@ -44,6 +46,19 @@ export function MembersList({ members }: { members: Member[] }) {
     }
   }
 
+  const getMembershipTypeLabel = (type?: string) => {
+    switch (type) {
+      case "1_MONTH":
+        return { label: "1 месец", color: "bg-blue-500/20 text-blue-500 border-blue-500/30" }
+      case "3_MONTHS":
+        return { label: "3 месеца", color: "bg-purple-500/20 text-purple-500 border-purple-500/30" }
+      case "1_YEAR":
+        return { label: "1 година", color: "bg-green-500/20 text-green-500 border-green-500/30" }
+      default:
+        return { label: "1 месец", color: "bg-blue-500/20 text-blue-500 border-blue-500/30" }
+    }
+  }
+
   const isExpiringSoon = (expiryDate: string) => {
     const expiry = new Date(expiryDate)
     const today = new Date()
@@ -69,7 +84,6 @@ export function MembersList({ members }: { members: Member[] }) {
           title: "Uspešno obrisano",
           description: `Član ${memberName} je uspešno obrisan iz sistema.`,
         })
-        // Refresh members list
         if ((window as any).refreshMembers) {
           ;(window as any).refreshMembers()
         }
@@ -101,72 +115,81 @@ export function MembersList({ members }: { members: Member[] }) {
       </div>
 
       <div className="space-y-3">
-        {members.map((member) => (
-          <div
-            key={member.id}
-            className="backdrop-blur-md bg-card/20 border border-primary/20 rounded-lg p-6 hover:border-primary/40 transition-colors"
-          >
-            <div className="flex items-start justify-between">
-              <div className="space-y-3 flex-1">
-                <div className="flex items-center gap-3">
-                  <User className="w-5 h-5 text-primary" />
-                  <h3 className="text-xl font-semibold text-foreground">
-                    {member.first_name} {member.last_name}
-                  </h3>
-                  <span className={`flex items-center gap-1 text-sm ${getStatusColor(member.status)}`}>
-                    {getStatusIcon(member.status)}
-                    {member.status}
-                  </span>
-                </div>
+        {members.map((member) => {
+          const membershipTypeInfo = getMembershipTypeLabel(member.membership_type)
 
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="w-4 h-4" />
-                  <span>{member.email}</span>
-                </div>
-
-                <div className="flex items-center gap-6 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      Почетак:{" "}
-                      <span className="text-foreground">{new Date(member.start_date).toLocaleDateString("sr-RS")}</span>
+          return (
+            <div
+              key={member.id}
+              className="backdrop-blur-md bg-card/20 border border-primary/20 rounded-lg p-6 hover:border-primary/40 transition-colors"
+            >
+              <div className="flex items-start justify-between">
+                <div className="space-y-3 flex-1">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <User className="w-5 h-5 text-primary" />
+                    <h3 className="text-xl font-semibold text-foreground">
+                      {member.first_name} {member.last_name}
+                    </h3>
+                    <span className={`flex items-center gap-1 text-sm ${getStatusColor(member.status)}`}>
+                      {getStatusIcon(member.status)}
+                      {member.status}
                     </span>
+                    <Badge variant="outline" className={`${membershipTypeInfo.color} border font-medium text-xs`}>
+                      {membershipTypeInfo.label}
+                    </Badge>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      Истиче:{" "}
-                      <span
-                        className={
-                          isExpiringSoon(member.expiry_date) ? "text-yellow-500 font-semibold" : "text-foreground"
-                        }
-                      >
-                        {new Date(member.expiry_date).toLocaleDateString("sr-RS")}
+
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Mail className="w-4 h-4" />
+                    <span>{member.email}</span>
+                  </div>
+
+                  <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        Почетак:{" "}
+                        <span className="text-foreground">
+                          {new Date(member.start_date).toLocaleDateString("sr-RS")}
+                        </span>
                       </span>
-                    </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        Истиче:{" "}
+                        <span
+                          className={
+                            isExpiringSoon(member.expiry_date) ? "text-yellow-500 font-semibold" : "text-foreground"
+                          }
+                        >
+                          {new Date(member.expiry_date).toLocaleDateString("sr-RS")}
+                        </span>
+                      </span>
+                    </div>
                   </div>
+
+                  {isExpiringSoon(member.expiry_date) && member.status === "active" && (
+                    <div className="flex items-center gap-2 text-yellow-500 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>Чланарина ускоро истиче!</span>
+                    </div>
+                  )}
                 </div>
 
-                {isExpiringSoon(member.expiry_date) && member.status === "active" && (
-                  <div className="flex items-center gap-2 text-yellow-500 text-sm">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>Чланарина ускоро истиче!</span>
-                  </div>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDeleteMember(member.id, `${member.first_name} ${member.last_name}`)}
+                  disabled={deletingId === member.id}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </Button>
               </div>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleDeleteMember(member.id, `${member.first_name} ${member.last_name}`)}
-                disabled={deletingId === member.id}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="w-5 h-5" />
-              </Button>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {members.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">

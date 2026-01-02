@@ -9,10 +9,7 @@ function isValidEmail(email: string): boolean {
 }
 
 function sanitizeInput(input: string): string {
-  return input
-    .trim()
-    .replace(/[<>]/g, "") // Remove < and > characters
-    .slice(0, 255) // Limit length
+  return input.trim().replace(/[<>]/g, "").slice(0, 255)
 }
 
 function isValidDate(dateString: string): boolean {
@@ -23,7 +20,7 @@ function isValidDate(dateString: string): boolean {
 export async function GET() {
   try {
     const members = await sql`
-      SELECT id, first_name, last_name, email, start_date, expiry_date, status, created_at
+      SELECT id, first_name, last_name, email, start_date, expiry_date, status, membership_type, created_at
       FROM members
       ORDER BY expiry_date ASC
     `
@@ -38,7 +35,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { firstName, lastName, email, startDate } = await request.json()
+    const { firstName, lastName, email, startDate, membershipType } = await request.json()
 
     if (!firstName || !lastName || !email || !startDate) {
       return NextResponse.json({ success: false, error: "Sva polja su obavezna" }, { status: 400 })
@@ -52,6 +49,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Nevažeći datum" }, { status: 400 })
     }
 
+    const validMembershipTypes = ["1_MONTH", "3_MONTHS", "1_YEAR"]
+    const finalMembershipType =
+      membershipType && validMembershipTypes.includes(membershipType) ? membershipType : "1_MONTH"
+
     const sanitizedFirstName = sanitizeInput(firstName)
     const sanitizedLastName = sanitizeInput(lastName)
     const sanitizedEmail = sanitizeInput(email.toLowerCase())
@@ -64,20 +65,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Član sa ovom email adresom već postoji" }, { status: 400 })
     }
 
-    // Calculate expiry date (same day next month)
     const start = new Date(startDate)
     const expiry = new Date(start)
-    expiry.setMonth(expiry.getMonth() + 1)
 
-    // Insert new member with sanitized data
+    switch (finalMembershipType) {
+      case "1_MONTH":
+        expiry.setMonth(expiry.getMonth() + 1)
+        break
+      case "3_MONTHS":
+        expiry.setMonth(expiry.getMonth() + 3)
+        break
+      case "1_YEAR":
+        expiry.setFullYear(expiry.getFullYear() + 1)
+        break
+    }
+
     await sql`
-      INSERT INTO members (first_name, last_name, email, start_date, expiry_date, status)
+      INSERT INTO members (first_name, last_name, email, start_date, expiry_date, membership_type, status)
       VALUES (
         ${sanitizedFirstName}, 
         ${sanitizedLastName}, 
         ${sanitizedEmail}, 
         ${startDate}, 
         ${expiry.toISOString().split("T")[0]}, 
+        ${finalMembershipType},
         'active'
       )
     `

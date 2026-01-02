@@ -6,12 +6,15 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { UserPlus, AlertCircle, CheckCircle, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
 
 export function AddMemberForm() {
   const [loading, setLoading] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
   const [errorMessage, setErrorMessage] = useState("")
   const [dateError, setDateError] = useState("")
+  const [membershipType, setMembershipType] = useState<"1_MONTH" | "3_MONTHS" | "1_YEAR">("1_MONTH")
 
   const validateDate = (dateString: string): boolean => {
     const datePattern = /^(\d{2})[./](\d{2})[./](\d{4})$/
@@ -67,7 +70,19 @@ export function AddMemberForm() {
     const startDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
 
     const expiryDate = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
-    expiryDate.setMonth(expiryDate.getMonth() + 1)
+
+    switch (membershipType) {
+      case "1_MONTH":
+        expiryDate.setMonth(expiryDate.getMonth() + 1)
+        break
+      case "3_MONTHS":
+        expiryDate.setMonth(expiryDate.getMonth() + 3)
+        break
+      case "1_YEAR":
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1)
+        break
+    }
+
     const expiryDateFormatted = expiryDate.toISOString().split("T")[0]
 
     const data = {
@@ -76,6 +91,7 @@ export function AddMemberForm() {
       email: formData.get("email"),
       start_date: startDate,
       expiry_date: expiryDateFormatted,
+      membership_type: membershipType,
       status: "active",
     }
 
@@ -95,6 +111,7 @@ export function AddMemberForm() {
       if (response.ok) {
         setSubmitStatus("success")
         ;(e.target as HTMLFormElement).reset()
+        setMembershipType("1_MONTH")
 
         if ((window as any).refreshMembers) {
           try {
@@ -189,6 +206,35 @@ export function AddMemberForm() {
               {dateError}
             </p>
           )}
+        </div>
+
+        <div className="space-y-3">
+          <Label className="text-sm font-medium text-foreground">Трајање чланарине</Label>
+          <RadioGroup
+            value={membershipType}
+            onValueChange={(value) => setMembershipType(value as "1_MONTH" | "3_MONTHS" | "1_YEAR")}
+            disabled={loading}
+            className="space-y-2"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="1_MONTH" id="1_month" className="border-primary/40" />
+              <Label htmlFor="1_month" className="text-foreground font-normal cursor-pointer">
+                1 месец
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="3_MONTHS" id="3_months" className="border-primary/40" />
+              <Label htmlFor="3_months" className="text-foreground font-normal cursor-pointer">
+                3 месеца
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="1_YEAR" id="1_year" className="border-primary/40" />
+              <Label htmlFor="1_year" className="text-foreground font-normal cursor-pointer">
+                1 година
+              </Label>
+            </div>
+          </RadioGroup>
         </div>
 
         <Button
