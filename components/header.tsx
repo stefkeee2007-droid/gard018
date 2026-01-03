@@ -10,7 +10,6 @@ const navLinks = [
   { href: "#pocetna", label: "Početna" },
   { href: "#o-nama", label: "O Nama" },
   { href: "#programi", label: "Programi" },
-  { href: "#treneri", label: "Treneri" },
   { href: "#raspored", label: "Raspored" },
   { href: "#galerija", label: "Galerija" },
   { href: "#kontakt", label: "Kontakt" },
