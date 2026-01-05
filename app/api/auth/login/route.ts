@@ -101,11 +101,15 @@ export async function POST(request: Request) {
     }
 
     const cookieStore = await cookies()
+    const thirtyDaysFromNow = new Date()
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+
     cookieStore.set("session", JSON.stringify(session), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+      maxAge: 60 * 60 * 24 * 30, // 30 days in seconds
+      expires: thirtyDaysFromNow, // Explicit expiry date ensures session persists after browser close
       path: "/",
     })
 
