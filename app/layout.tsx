@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     siteName: "GARD 018",
     images: [
       {
-        url: "/og-image.jpg",
+        url: "https://gard018.com/og-image.jpg?v=2",
         width: 1200,
         height: 630,
         alt: "GARD 018 - Boks i Kik Boks Klub u Nišu",
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "GARD 018 - Boks i Kik Boks Klub u Nišu",
     description: "Profesionalni boks i kik boks treninzi. Muay thai, tajlandski boks. Grupni i individualni treninzi.",
-    images: ["/og-image.jpg"],
+    images: ["https://gard018.com/og-image.jpg?v=2"],
   },
   robots: {
     index: true,
