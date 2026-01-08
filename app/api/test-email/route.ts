@@ -7,17 +7,17 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Sending test email to:", email)
 
-    const apiKey = process.env.RESEND_API_KEY || "re_XoRzT6q9_EKAmAxcohVgrseiQpAghBGRA"
-    console.log("[v0] RESEND_API_KEY exists:", !!apiKey)
+    const apiKey = process.env.RESEND_API_KEY
 
     if (!apiKey) {
-      throw new Error("RESEND_API_KEY is not configured")
+      console.error("[v0] RESEND_API_KEY environment variable is not configured")
+      return NextResponse.json({ success: false, error: "Email service is not configured" }, { status: 500 })
     }
 
     const resend = new Resend(apiKey)
 
     const { data, error } = await resend.emails.send({
-      from: "GARD 018 Borilački Klub <onboarding@resend.dev>",
+      from: "GARD 018 <info@gard018.com>",
       to: [email],
       subject: "Podsetnik o članarini - GARD 018",
       html: `
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
                       <p style="margin: 0 0 10px 0; color: #333333; font-size: 14px; line-height: 1.8;">
                         <strong>Telefon:</strong> 069 010 5213<br>
                         <strong>Email:</strong> ognjen.boks19@gmail.com<br>
-                        <strong>Adresa:</strong> Светозара Милетића 10, Ниш 18000
+                        <strong>Adresa:</strong> Svetozara Miletića 10, Niš 18000
                       </p>
                     </td>
                   </tr>

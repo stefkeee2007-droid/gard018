@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
 import bcrypt from "bcryptjs"
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 
 const sql = neon(process.env.DATABASE_URL!)
 
+const resetPasswordLimiter = rateLimit({
+  limit: 5,
+  windowMs: 60 * 60 * 1000, // 1 hour, 5 attempts
+})
+
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown"
+    const rateLimitResult = await resetPasswordLimiter(ip)
+
+    if (!rateLimitResult.success) {
+      console.log("[v0] Rate limit exceeded for reset password from IP:", ip)
+      return rateLimitResponse(rateLimitResult.reset)
+    }
+
     const body = await request.json()
     const { token, password } = body
 
@@ -22,6 +36,8 @@ export async function POST(request: Request) {
     }
 
     const sanitizedToken = token.trim()
+
+    const tokenHash = await bcrypt.hash(sanitizedToken, 10)
 
     const users = await sql`
       SELECT id, email, reset_token, reset_token_expiry

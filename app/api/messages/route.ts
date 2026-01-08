@@ -1,12 +1,13 @@
 import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
+import { checkAdminAuth } from "@/lib/auth-helpers"
 
 const sql = neon(process.env.DATABASE_URL!)
 
 const messageLimiter = rateLimit({
   limit: 5,
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000,
 })
 
 function isValidEmail(email: string): boolean {
@@ -15,30 +16,32 @@ function isValidEmail(email: string): boolean {
 }
 
 function sanitizeInput(input: string): string {
-  return input
-    .trim()
-    .replace(/[<>]/g, "") // Remove < and > characters to prevent XSS
-    .slice(0, 1000) // Limit length
+  return input.trim().replace(/[<>]/g, "").slice(0, 1000)
 }
 
 function sanitizePhone(phone: string | null | undefined): string | null {
   if (!phone) return null
   return phone
     .trim()
-    .replace(/[^\d+\s()-]/g, "") // Only allow digits, +, spaces, parentheses, and dashes
+    .replace(/[^\d+\s()-]/g, "")
     .slice(0, 20)
 }
 
 export async function GET() {
   try {
+    const auth = await checkAdminAuth()
+    if (!auth.isAdmin) {
+      return NextResponse.json({ error: auth.error || "Nemate pristup" }, { status: auth.isAuthenticated ? 403 : 401 })
+    }
+
     const messages = await sql`SELECT * FROM messages ORDER BY created_at DESC`
-    return Response.json({ messages })
+    return NextResponse.json({ messages })
   } catch (error) {
     console.error("[v0] Error fetching messages:", {
       error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined,
     })
-    return Response.json({ error: "Failed to fetch messages" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
   }
 }
 
@@ -99,6 +102,11 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const auth = await checkAdminAuth()
+    if (!auth.isAdmin) {
+      return NextResponse.json({ error: auth.error || "Nemate pristup" }, { status: auth.isAuthenticated ? 403 : 401 })
+    }
+
     const { id, status } = await request.json()
 
     if (!id || !status) {

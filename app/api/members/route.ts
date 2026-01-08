@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
+import { checkAdminAuth } from "@/lib/auth-helpers"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -19,6 +20,11 @@ function isValidDate(dateString: string): boolean {
 
 export async function GET() {
   try {
+    const auth = await checkAdminAuth()
+    if (!auth.isAdmin) {
+      return NextResponse.json({ error: auth.error || "Nemate pristup" }, { status: auth.isAuthenticated ? 403 : 401 })
+    }
+
     const members = await sql`
       SELECT id, first_name, last_name, email, start_date, expiry_date, status, membership_type, created_at
       FROM members
@@ -35,6 +41,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const auth = await checkAdminAuth()
+    if (!auth.isAdmin) {
+      return NextResponse.json({ error: auth.error || "Nemate pristup" }, { status: auth.isAuthenticated ? 403 : 401 })
+    }
+
     const { firstName, lastName, email, startDate, membershipType } = await request.json()
 
     if (!firstName || !lastName || !email || !startDate) {

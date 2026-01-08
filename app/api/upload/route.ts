@@ -1,5 +1,9 @@
 import { put } from "@vercel/blob"
 import { cookies } from "next/headers"
+import { NextResponse } from "next/server"
+
+const ALLOWED_FILE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +14,20 @@ export async function POST(request: Request) {
 
     if (!file) {
       console.log("[v0] No file in form data")
-      return Response.json({ error: "Nema fajla" }, { status: 400 })
+      return NextResponse.json({ error: "Nema fajla" }, { status: 400 })
+    }
+
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      console.log("[v0] Invalid file type:", file.type)
+      return NextResponse.json(
+        { error: "Tip fajla nije dozvoljen. Dozvoljeni su samo slike (JPG, PNG, WebP, GIF)" },
+        { status: 400 },
+      )
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      console.log("[v0] File too large:", file.size)
+      return NextResponse.json({ error: "Fajl je prevelik. Maksimalna veličina je 5MB" }, { status: 400 })
     }
 
     console.log("[v0] File received:", file.name, file.type, file.size)
@@ -20,15 +37,21 @@ export async function POST(request: Request) {
 
     if (!sessionCookie) {
       console.log("[v0] No session cookie")
-      return Response.json({ error: "Niste ulogovani" }, { status: 401 })
+      return NextResponse.json({ error: "Niste ulogovani" }, { status: 401 })
     }
 
-    const sessionData = sessionCookie.value.split("|")
-    const email = sessionData[0]
+    let email: string
+    try {
+      const session = JSON.parse(sessionCookie.value)
+      email = session.user?.email
 
-    if (!email) {
-      console.log("[v0] No email in session")
-      return Response.json({ error: "Niste ulogovani" }, { status: 401 })
+      if (!email) {
+        console.log("[v0] No email in session")
+        return NextResponse.json({ error: "Niste ulogovani" }, { status: 401 })
+      }
+    } catch (parseError) {
+      console.error("[v0] Session parse error:", parseError)
+      return NextResponse.json({ error: "Nevažeća sesija" }, { status: 401 })
     }
 
     const sanitizedEmail = email.replace(/[^a-z0-9]/gi, "-")
@@ -43,10 +66,10 @@ export async function POST(request: Request) {
 
     console.log("[v0] Upload successful:", blob.url)
 
-    return Response.json({ url: blob.url })
+    return NextResponse.json({ url: blob.url })
   } catch (error) {
     console.error("[v0] Upload error:", error)
-    return Response.json(
+    return NextResponse.json(
       { error: `Greška pri upload-ovanju: ${error instanceof Error ? error.message : "nepoznata greška"}` },
       { status: 500 },
     )
