@@ -113,12 +113,16 @@ export async function POST(request: Request) {
         },
       }
 
+      const maxAge = 60 * 60 * 24 * 30 // 30 days in seconds
+      const expires = new Date(Date.now() + maxAge * 1000)
+
       const cookieStore = await cookies()
       cookieStore.set("session", JSON.stringify(session), {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30,
+        maxAge: maxAge,
+        expires: expires, // Explicit expires ensures cookie persists after browser restart
         path: "/",
       })
 
