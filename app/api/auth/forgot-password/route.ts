@@ -78,7 +78,7 @@ export async function POST(req: Request) {
 
     const resend = new Resend(apiKey)
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+    const baseUrl = "https://gard018.com"
     const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`
 
     const emailResult = await resend.emails.send({
