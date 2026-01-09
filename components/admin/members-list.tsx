@@ -52,6 +52,14 @@ export function MembersList({ members }: { members: Member[] }) {
     return daysUntilExpiry <= 7 && daysUntilExpiry >= 0
   }
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const day = String(date.getDate()).padStart(2, "0")
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}.${month}.${year}.`
+  }
+
   const handleDeleteMember = async (memberId: number, memberName: string) => {
     if (!confirm(`Da li ste sigurni da želite da obrišete člana ${memberName}?`)) {
       return
@@ -129,10 +137,7 @@ export function MembersList({ members }: { members: Member[] }) {
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <span className="text-muted-foreground">
-                        Почетак:{" "}
-                        <span className="text-foreground">
-                          {new Date(member.start_date).toLocaleDateString("sr-RS")}
-                        </span>
+                        Почетак: <span className="text-foreground">{formatDate(member.start_date)}</span>
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -144,7 +149,7 @@ export function MembersList({ members }: { members: Member[] }) {
                             isExpiringSoon(member.expiry_date) ? "text-yellow-500 font-semibold" : "text-foreground"
                           }
                         >
-                          {new Date(member.expiry_date).toLocaleDateString("sr-RS")}
+                          {formatDate(member.expiry_date)}
                         </span>
                       </span>
                     </div>

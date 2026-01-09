@@ -11,6 +11,16 @@ export function AddMemberForm() {
   const [loading, setLoading] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
   const [errorMessage, setErrorMessage] = useState("")
+  const [selectedDate, setSelectedDate] = useState<string>("")
+
+  const formatDateDisplay = (dateString: string) => {
+    if (!dateString) return ""
+    const date = new Date(dateString)
+    const day = String(date.getDate()).padStart(2, "0")
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const year = date.getFullYear()
+    return `${day}.${month}.${year}.`
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -47,6 +57,7 @@ export function AddMemberForm() {
       if (response.ok) {
         setSubmitStatus("success")
         ;(e.target as HTMLFormElement).reset()
+        setSelectedDate("")
 
         if ((window as any).refreshMembers) {
           try {
@@ -128,8 +139,13 @@ export function AddMemberForm() {
             required
             disabled={loading}
             min={new Date().toISOString().split("T")[0]}
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
             className="w-full px-4 py-2 bg-background/50 border border-primary/20 rounded-lg text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
           />
+          {selectedDate && (
+            <p className="text-sm text-primary mt-1">Изабрани датум: {formatDateDisplay(selectedDate)}</p>
+          )}
           <p className="text-xs text-muted-foreground mt-1">Изаберите било који датум у будућности</p>
         </div>
 
