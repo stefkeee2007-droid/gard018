@@ -1,9 +1,17 @@
 "use client"
 
-import { Calendar, Mail, User, AlertCircle, CheckCircle, Trash2 } from "lucide-react"
+import { Calendar, Mail, User, AlertCircle, CheckCircle, Trash2, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 interface Member {
   id: number
@@ -19,6 +27,9 @@ interface Member {
 
 export function MembersList({ members }: { members: Member[] }) {
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [editingMember, setEditingMember] = useState<Member | null>(null)
+  const [newExpiryDate, setNewExpiryDate] = useState<string>("")
+  const [isUpdating, setIsUpdating] = useState(false)
   const { toast } = useToast()
 
   const getStatusColor = (status: string) => {
@@ -58,6 +69,55 @@ export function MembersList({ members }: { members: Member[] }) {
     const month = String(date.getMonth() + 1).padStart(2, "0")
     const year = date.getFullYear()
     return `${day}.${month}.${year}.`
+  }
+
+  const handleOpenEditModal = (member: Member) => {
+    setEditingMember(member)
+    // Convert expiry_date to YYYY-MM-DD format for input
+    const date = new Date(member.expiry_date)
+    const formattedDate = date.toISOString().split("T")[0]
+    setNewExpiryDate(formattedDate)
+  }
+
+  const handleUpdateExpiryDate = async () => {
+    if (!editingMember || !newExpiryDate) return
+
+    setIsUpdating(true)
+    try {
+      const response = await fetch(`/api/members/${editingMember.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expiry_date: newExpiryDate }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Uspešno ažurirano",
+          description: `Datum isteka za ${editingMember.first_name} ${editingMember.last_name} je uspešno ažuriran.`,
+        })
+        setEditingMember(null)
+        // Refresh members list
+        if ((window as any).refreshMembers) {
+          ;(window as any).refreshMembers()
+        }
+      } else {
+        const data = await response.json()
+        toast({
+          title: "Greška",
+          description: data.error || "Došlo je do greške pri ažuriranju datuma.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error updating expiry date:", error)
+      toast({
+        title: "Greška",
+        description: "Došlo je do greške pri ažuriranju datuma.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
   const handleDeleteMember = async (memberId: number, memberName: string) => {
@@ -133,13 +193,7 @@ export function MembersList({ members }: { members: Member[] }) {
                     <span>{member.email}</span>
                   </div>
 
-                  <div className="flex items-center gap-6 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">
-                        Почетак: <span className="text-foreground">{formatDate(member.start_date)}</span>
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-3 text-sm">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <span className="text-muted-foreground">
@@ -153,6 +207,15 @@ export function MembersList({ members }: { members: Member[] }) {
                         </span>
                       </span>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => handleOpenEditModal(member)}
+                      title="Izmeni datum isteka"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
                   </div>
 
                   {isExpiringSoon(member.expiry_date) && member.status === "active" && (
@@ -184,6 +247,42 @@ export function MembersList({ members }: { members: Member[] }) {
           </div>
         )}
       </div>
+
+      <Dialog open={!!editingMember} onOpenChange={(open) => !open && setEditingMember(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Измени datum истека</DialogTitle>
+            <DialogDescription>
+              Изаберите нови датум истека чланарине за {editingMember?.first_name} {editingMember?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="expiry-date" className="text-sm font-medium">
+                Нови датум истека
+              </label>
+              <input
+                id="expiry-date"
+                type="date"
+                value={newExpiryDate}
+                onChange={(e) => setNewExpiryDate(e.target.value)}
+                className="w-full px-3 py-2 border border-input bg-background rounded-md"
+              />
+              {newExpiryDate && <p className="text-sm text-muted-foreground">Приказ: {formatDate(newExpiryDate)}</p>}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingMember(null)} disabled={isUpdating}>
+              Откажи
+            </Button>
+            <Button onClick={handleUpdateExpiryDate} disabled={isUpdating || !newExpiryDate}>
+              {isUpdating ? "Чување..." : "Сачувај"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
