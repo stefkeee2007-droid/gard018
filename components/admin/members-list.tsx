@@ -262,6 +262,7 @@ export function MembersList({ members }: { members: Member[] }) {
               <label htmlFor="expiry-date" className="text-sm font-medium">
                 Нови датум истека
               </label>
+              <p className="text-xs text-muted-foreground">Формат: DD.MM.YYYY</p>
               <input
                 id="expiry-date"
                 type="date"
@@ -270,7 +271,11 @@ export function MembersList({ members }: { members: Member[] }) {
                 onChange={(e) => setNewExpiryDate(e.target.value)}
                 className="w-full px-3 py-2 border border-input bg-background rounded-md"
               />
-              {newExpiryDate && <p className="text-sm text-muted-foreground">Приказ: {formatDate(newExpiryDate)}</p>}
+              {newExpiryDate && (
+                <p className="text-sm font-medium text-foreground">
+                  Изабрани датум: <span className="text-primary">{formatDate(newExpiryDate)}</span>
+                </p>
+              )}
             </div>
           </div>
 
