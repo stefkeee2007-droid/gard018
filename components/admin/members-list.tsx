@@ -4,7 +4,6 @@ import { Calendar, Mail, User, AlertCircle, CheckCircle, Trash2 } from "lucide-r
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { Badge } from "@/components/ui/badge"
 
 interface Member {
   id: number
@@ -43,19 +42,6 @@ export function MembersList({ members }: { members: Member[] }) {
         return <AlertCircle className="w-5 h-5" />
       default:
         return <AlertCircle className="w-5 h-5" />
-    }
-  }
-
-  const getMembershipTypeLabel = (type?: string) => {
-    switch (type) {
-      case "1_MONTH":
-        return { label: "1 месец", color: "bg-blue-500/20 text-blue-500 border-blue-500/30" }
-      case "3_MONTHS":
-        return { label: "3 месеца", color: "bg-purple-500/20 text-purple-500 border-purple-500/30" }
-      case "1_YEAR":
-        return { label: "1 година", color: "bg-green-500/20 text-green-500 border-green-500/30" }
-      default:
-        return { label: "1 месец", color: "bg-blue-500/20 text-blue-500 border-blue-500/30" }
     }
   }
 
@@ -116,8 +102,6 @@ export function MembersList({ members }: { members: Member[] }) {
 
       <div className="space-y-3">
         {members.map((member) => {
-          const membershipTypeInfo = getMembershipTypeLabel(member.membership_type)
-
           return (
             <div
               key={member.id}
@@ -134,9 +118,6 @@ export function MembersList({ members }: { members: Member[] }) {
                       {getStatusIcon(member.status)}
                       {member.status}
                     </span>
-                    <Badge variant="outline" className={`${membershipTypeInfo.color} border font-medium text-xs`}>
-                      {membershipTypeInfo.label}
-                    </Badge>
                   </div>
 
                   <div className="flex items-center gap-2 text-muted-foreground">

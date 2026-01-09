@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Eye, EyeOff, UserPlus, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -21,82 +20,17 @@ export function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
-  const [membershipPaid, setMembershipPaid] = useState<"paid" | "unpaid">("unpaid")
   const [showUserExists, setShowUserExists] = useState(false)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState("")
   const [isResetting, setIsResetting] = useState(false)
-  const [dateError, setDateError] = useState("")
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
     password: "",
-    paymentDate: "",
   })
-
-  const validateDate = (dateString: string): boolean => {
-    // Check if empty
-    if (!dateString || dateString.trim() === "") {
-      setDateError("Datum je obavezan")
-      return false
-    }
-
-    // Check format DD/MM/YYYY
-    const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/
-    const match = dateString.match(datePattern)
-
-    if (!match) {
-      setDateError("Neispravan format. Koristite DD/MM/GGGG (npr. 15/12/2024)")
-      return false
-    }
-
-    const [, day, month, year] = match
-    const dayNum = Number.parseInt(day)
-    const monthNum = Number.parseInt(month)
-    const yearNum = Number.parseInt(year)
-
-    // Validate ranges
-    if (monthNum < 1 || monthNum > 12) {
-      setDateError("Mesec mora biti između 01 i 12")
-      return false
-    }
-
-    if (dayNum < 1 || dayNum > 31) {
-      setDateError("Dan mora biti između 01 i 31")
-      return false
-    }
-
-    if (yearNum < 2020 || yearNum > 2100) {
-      setDateError("Godina nije u validnom opsegu")
-      return false
-    }
-
-    const inputDate = new Date(yearNum, monthNum - 1, dayNum)
-
-    if (
-      inputDate.getDate() !== dayNum ||
-      inputDate.getMonth() !== monthNum - 1 ||
-      inputDate.getFullYear() !== yearNum
-    ) {
-      setDateError("Datum ne postoji u kalendaru. Proverite unos.")
-      return false
-    }
-
-    // Check if date is not in the past
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    inputDate.setHours(0, 0, 0, 0)
-
-    if (inputDate < today) {
-      setDateError("Datum ne može biti u prošlosti")
-      return false
-    }
-
-    setDateError("")
-    return true
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -110,46 +44,14 @@ export function RegisterForm() {
       return
     }
 
-    if (membershipPaid === "paid") {
-      if (!formData.paymentDate) {
-        setDateError("Datum uplate je obavezan")
-        return
-      }
-      if (!validateDate(formData.paymentDate)) {
-        return
-      }
-    }
-
     setIsLoading(true)
     setShowUserExists(false)
 
     try {
-      let startDate = null
-      let expiryDate = null
-      let status = "expired"
-
-      if (membershipPaid === "paid" && formData.paymentDate) {
-        const [day, month, year] = formData.paymentDate.split("/")
-
-        const paddedDay = day.padStart(2, "0")
-        const paddedMonth = month.padStart(2, "0")
-
-        startDate = `${year}-${paddedMonth}-${paddedDay}`
-
-        const expiry = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
-        expiry.setMonth(expiry.getMonth() + 1)
-        expiryDate = expiry.toISOString().split("T")[0]
-        status = "active"
-      } else {
-        startDate = new Date().toISOString().split("T")[0]
-        expiryDate = new Date().toISOString().split("T")[0]
-        status = "expired"
-      }
-
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-      const registerResponse = await fetch("/api/auth/register-with-membership", {
+      const registerResponse = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -157,11 +59,6 @@ export function RegisterForm() {
           password: formData.password,
           firstName: formData.firstName,
           lastName: formData.lastName,
-          membershipData: {
-            startDate,
-            expiryDate,
-            status,
-          },
         }),
         signal: controller.signal,
       })
@@ -367,62 +264,6 @@ export function RegisterForm() {
                 className="bg-background border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
-
-            <div className="space-y-3">
-              <Label className="text-foreground">Status članarine</Label>
-              <RadioGroup
-                value={membershipPaid}
-                onValueChange={(value) => setMembershipPaid(value as "paid" | "unpaid")}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="paid" id="paid" className="border-border text-primary" />
-                  <Label htmlFor="paid" className="text-foreground font-normal cursor-pointer">
-                    Plaćena
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="unpaid" id="unpaid" className="border-border text-primary" />
-                  <Label htmlFor="unpaid" className="text-foreground font-normal cursor-pointer">
-                    Nije plaćena
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {membershipPaid === "paid" && (
-              <div className="space-y-2">
-                <Label htmlFor="paymentDate" className="text-foreground">
-                  Datum uplate članarine
-                </Label>
-                <Input
-                  id="paymentDate"
-                  type="text"
-                  placeholder="DD/MM/GGGG (npr. 15/12/2024)"
-                  value={formData.paymentDate}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/[^\d/]/g, "")
-                    setFormData({ ...formData, paymentDate: value })
-                    if (dateError) setDateError("")
-                  }}
-                  onBlur={() => {
-                    if (formData.paymentDate) {
-                      validateDate(formData.paymentDate)
-                    }
-                  }}
-                  pattern="\d{2}/\d{2}/\d{4}"
-                  required
-                  className={`bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 ${
-                    dateError ? "border-destructive focus-visible:ring-destructive" : ""
-                  }`}
-                />
-                {dateError && (
-                  <p className="text-sm text-destructive flex items-center gap-1.5 mt-1.5">
-                    <AlertCircle className="w-4 h-4" />
-                    {dateError}
-                  </p>
-                )}
-              </div>
-            )}
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-foreground">

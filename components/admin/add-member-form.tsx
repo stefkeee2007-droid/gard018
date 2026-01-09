@@ -6,92 +6,28 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { UserPlus, AlertCircle, CheckCircle, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
 
 export function AddMemberForm() {
   const [loading, setLoading] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
   const [errorMessage, setErrorMessage] = useState("")
-  const [dateError, setDateError] = useState("")
-  const [membershipType, setMembershipType] = useState<"1_MONTH" | "3_MONTHS" | "1_YEAR">("1_MONTH")
-
-  const validateDate = (dateString: string): boolean => {
-    const datePattern = /^(\d{2})[./](\d{2})[./](\d{4})$/
-    const match = dateString.match(datePattern)
-
-    if (!match) {
-      setDateError("Format mora biti DD.MM.YYYY ili DD/MM/YYYY")
-      return false
-    }
-
-    const [, day, month, year] = match
-    const dayNum = Number.parseInt(day)
-    const monthNum = Number.parseInt(month)
-    const yearNum = Number.parseInt(year)
-
-    if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
-      setDateError("Neispravan datum")
-      return false
-    }
-
-    const inputDate = new Date(yearNum, monthNum - 1, dayNum)
-    if (
-      inputDate.getDate() !== dayNum ||
-      inputDate.getMonth() !== monthNum - 1 ||
-      inputDate.getFullYear() !== yearNum
-    ) {
-      setDateError("Datum ne postoji u kalendaru")
-      return false
-    }
-
-    setDateError("")
-    return true
-  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setSubmitStatus("idle")
     setErrorMessage("")
-    setDateError("")
 
     const formData = new FormData(e.currentTarget)
-    const startDateInput = formData.get("startDate") as string
 
-    if (!validateDate(startDateInput)) {
-      setLoading(false)
-      setSubmitStatus("error")
-      setErrorMessage("Neispravan format datuma")
-      return
-    }
-
-    const [day, month, year] = startDateInput.split(/[./]/)
-    const startDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
-
-    const expiryDate = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
-
-    switch (membershipType) {
-      case "1_MONTH":
-        expiryDate.setMonth(expiryDate.getMonth() + 1)
-        break
-      case "3_MONTHS":
-        expiryDate.setMonth(expiryDate.getMonth() + 3)
-        break
-      case "1_YEAR":
-        expiryDate.setFullYear(expiryDate.getFullYear() + 1)
-        break
-    }
-
-    const expiryDateFormatted = expiryDate.toISOString().split("T")[0]
+    const expiryDateInput = formData.get("expiryDate") as string
 
     const data = {
       first_name: formData.get("firstName"),
       last_name: formData.get("lastName"),
       email: formData.get("email"),
-      start_date: startDate,
-      expiry_date: expiryDateFormatted,
-      membership_type: membershipType,
+      start_date: new Date().toISOString().split("T")[0], // Today
+      expiry_date: expiryDateInput,
       status: "active",
     }
 
@@ -111,7 +47,6 @@ export function AddMemberForm() {
       if (response.ok) {
         setSubmitStatus("success")
         ;(e.target as HTMLFormElement).reset()
-        setMembershipType("1_MONTH")
 
         if ((window as any).refreshMembers) {
           try {
@@ -186,55 +121,16 @@ export function AddMemberForm() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Датум почетка</label>
+          <label className="block text-sm font-medium text-foreground mb-2">Датум истека чланарине</label>
           <input
-            type="text"
-            name="startDate"
+            type="date"
+            name="expiryDate"
             required
             disabled={loading}
-            placeholder="DD.MM.YYYY (нпр. 17.12.2025)"
-            pattern="\d{2}[./]\d{2}[./]\d{4}"
-            defaultValue={new Date().toLocaleDateString("sr-RS", { day: "2-digit", month: "2-digit", year: "numeric" })}
-            onBlur={(e) => validateDate(e.target.value)}
-            className={`w-full px-4 py-2 bg-background/50 border rounded-lg text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-50 ${
-              dateError ? "border-red-500" : "border-primary/20"
-            }`}
+            min={new Date().toISOString().split("T")[0]}
+            className="w-full px-4 py-2 bg-background/50 border border-primary/20 rounded-lg text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
           />
-          {dateError && (
-            <p className="text-sm text-red-500 flex items-center gap-1.5 mt-1.5">
-              <AlertCircle className="w-4 h-4" />
-              {dateError}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <Label className="text-sm font-medium text-foreground">Трајање чланарине</Label>
-          <RadioGroup
-            value={membershipType}
-            onValueChange={(value) => setMembershipType(value as "1_MONTH" | "3_MONTHS" | "1_YEAR")}
-            disabled={loading}
-            className="space-y-2"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="1_MONTH" id="1_month" className="border-primary/40" />
-              <Label htmlFor="1_month" className="text-foreground font-normal cursor-pointer">
-                1 месец
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="3_MONTHS" id="3_months" className="border-primary/40" />
-              <Label htmlFor="3_months" className="text-foreground font-normal cursor-pointer">
-                3 месеца
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="1_YEAR" id="1_year" className="border-primary/40" />
-              <Label htmlFor="1_year" className="text-foreground font-normal cursor-pointer">
-                1 година
-              </Label>
-            </div>
-          </RadioGroup>
+          <p className="text-xs text-muted-foreground mt-1">Изаберите било који датум у будућности</p>
         </div>
 
         <Button
