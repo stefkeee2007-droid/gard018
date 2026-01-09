@@ -38,21 +38,48 @@ export function UserNav() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/auth/session").then((res) => res.json()),
-      fetch("/api/auth/check-admin").then((res) => res.json()),
-      fetch("/api/members/by-email").then((res) => res.json()),
-    ])
-      .then(([sessionData, adminData, membershipData]) => {
+    const fetchSessionData = async () => {
+      try {
+        console.log("[v0] Fetching session data...")
+
+        const sessionResponse = await fetch("/api/auth/session")
+        console.log("[v0] Session response status:", sessionResponse.status)
+        console.log("[v0] Session response Content-Type:", sessionResponse.headers.get("Content-Type"))
+
+        // Check if response is actually JSON
+        const contentType = sessionResponse.headers.get("Content-Type")
+        if (!contentType || !contentType.includes("application/json")) {
+          console.error("[v0] Session endpoint returned non-JSON response")
+          setIsLoading(false)
+          return
+        }
+
+        const sessionData = await sessionResponse.json()
+        console.log("[v0] Session data:", sessionData)
+
+        const [adminData, membershipData] = await Promise.all([
+          fetch("/api/auth/check-admin")
+            .then((res) => res.json())
+            .catch(() => ({ isAdmin: false })),
+          fetch("/api/members/by-email")
+            .then((res) => res.json())
+            .catch(() => ({ membership: null })),
+        ])
+
         setUser(sessionData.user || null)
         setIsAdmin(adminData.isAdmin || false)
         setMembership(membershipData.membership || null)
         setIsLoading(false)
-      })
-      .catch((error) => {
-        console.error("Session fetch error:", error)
+      } catch (error) {
+        console.error("[v0] Session fetch error:", error)
+        setUser(null)
+        setIsAdmin(false)
+        setMembership(null)
         setIsLoading(false)
-      })
+      }
+    }
+
+    fetchSessionData()
   }, [])
 
   const handleLogout = async () => {

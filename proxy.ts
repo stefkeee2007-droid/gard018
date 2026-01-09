@@ -4,6 +4,10 @@ import type { NextRequest } from "next/server"
 export function proxy(request: NextRequest) {
   const response = NextResponse.next()
 
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return response
+  }
+
   response.headers.set("X-Frame-Options", "DENY")
   response.headers.set("X-Content-Type-Options", "nosniff")
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
