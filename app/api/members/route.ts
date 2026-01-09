@@ -46,9 +46,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: auth.error || "Nemate pristup" }, { status: auth.isAuthenticated ? 403 : 401 })
     }
 
-    const { firstName, lastName, email, startDate, membershipType } = await request.json()
+    const { first_name, last_name, email, start_date, expiry_date } = await request.json()
 
-    if (!firstName || !lastName || !email || !startDate) {
+    if (!first_name || !last_name || !email || !start_date || !expiry_date) {
       return NextResponse.json({ success: false, error: "Sva polja su obavezna" }, { status: 400 })
     }
 
@@ -56,16 +56,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Nevažeća email adresa" }, { status: 400 })
     }
 
-    if (!isValidDate(startDate)) {
-      return NextResponse.json({ success: false, error: "Nevažeći datum" }, { status: 400 })
+    if (!isValidDate(start_date)) {
+      return NextResponse.json({ success: false, error: "Nevažeći datum početka" }, { status: 400 })
     }
 
-    const validMembershipTypes = ["1_MONTH", "3_MONTHS", "1_YEAR"]
-    const finalMembershipType =
-      membershipType && validMembershipTypes.includes(membershipType) ? membershipType : "1_MONTH"
+    if (!isValidDate(expiry_date)) {
+      return NextResponse.json({ success: false, error: "Nevažeći datum isteka" }, { status: 400 })
+    }
 
-    const sanitizedFirstName = sanitizeInput(firstName)
-    const sanitizedLastName = sanitizeInput(lastName)
+    const startDateObj = new Date(start_date)
+    const expiryDateObj = new Date(expiry_date)
+    if (expiryDateObj <= startDateObj) {
+      return NextResponse.json(
+        { success: false, error: "Datum isteka mora biti posle datuma početka" },
+        { status: 400 },
+      )
+    }
+
+    const sanitizedFirstName = sanitizeInput(first_name)
+    const sanitizedLastName = sanitizeInput(last_name)
     const sanitizedEmail = sanitizeInput(email.toLowerCase())
 
     const existingMember = await sql`
@@ -76,30 +85,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Član sa ovom email adresom već postoji" }, { status: 400 })
     }
 
-    const start = new Date(startDate)
-    const expiry = new Date(start)
-
-    switch (finalMembershipType) {
-      case "1_MONTH":
-        expiry.setMonth(expiry.getMonth() + 1)
-        break
-      case "3_MONTHS":
-        expiry.setMonth(expiry.getMonth() + 3)
-        break
-      case "1_YEAR":
-        expiry.setFullYear(expiry.getFullYear() + 1)
-        break
-    }
-
     await sql`
       INSERT INTO members (first_name, last_name, email, start_date, expiry_date, membership_type, status)
       VALUES (
         ${sanitizedFirstName}, 
         ${sanitizedLastName}, 
         ${sanitizedEmail}, 
-        ${startDate}, 
-        ${expiry.toISOString().split("T")[0]}, 
-        ${finalMembershipType},
+        ${start_date}, 
+        ${expiry_date}, 
+        'MANUAL',
         'active'
       )
     `
