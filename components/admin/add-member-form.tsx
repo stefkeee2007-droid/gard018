@@ -136,6 +136,7 @@ export function AddMemberForm() {
           <input
             type="date"
             name="expiryDate"
+            lang="sr-RS"
             required
             disabled={loading}
             min={new Date().toISOString().split("T")[0]}

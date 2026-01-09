@@ -265,6 +265,7 @@ export function MembersList({ members }: { members: Member[] }) {
               <input
                 id="expiry-date"
                 type="date"
+                lang="sr-RS"
                 value={newExpiryDate}
                 onChange={(e) => setNewExpiryDate(e.target.value)}
                 className="w-full px-3 py-2 border border-input bg-background rounded-md"

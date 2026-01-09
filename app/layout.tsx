@@ -90,7 +90,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="sr">
+    <html lang="sr-RS">
       <body className={`font-sans antialiased ${_oswald.variable}`}>
         <div className="gradient-bg" />
         {children}
