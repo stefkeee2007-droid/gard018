@@ -80,60 +80,95 @@ export function MembersList({ members }: { members: Member[] }) {
   }
 
   const handleUpdateExpiryDate = async () => {
-    if (!editingMember || !newExpiryDate) return
+    if (!editingMember || !newExpiryDate) {
+      console.log("[v0] Cannot update - missing data:", {
+        hasEditingMember: !!editingMember,
+        hasNewExpiryDate: !!newExpiryDate,
+      })
+      return
+    }
 
     setIsUpdating(true)
 
     const requestData = { expiry_date: newExpiryDate }
-    console.log("[v0] Slanje podataka:", {
+    const url = `/api/members/${editingMember.id}`
+
+    console.log("[v0] ===== STARTING UPDATE REQUEST =====")
+    console.log("[v0] Request details:", {
       memberId: editingMember.id,
+      memberName: `${editingMember.first_name} ${editingMember.last_name}`,
+      currentExpiryDate: editingMember.expiry_date,
+      newExpiryDate: newExpiryDate,
       requestData,
-      url: `/api/members/${editingMember.id}`,
+      url,
       method: "PATCH",
     })
 
     try {
-      const response = await fetch(`/api/members/${editingMember.id}`, {
+      const response = await fetch(url, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(requestData),
       })
 
-      console.log("[v0] Odgovor servera:", {
+      console.log("[v0] Response received:", {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok,
         headers: Object.fromEntries(response.headers.entries()),
+        url: response.url,
       })
 
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text()
+        console.error("[v0] Non-JSON response received:", {
+          contentType,
+          text: text.substring(0, 500),
+        })
+        throw new Error("Server nije vratio JSON odgovor")
+      }
+
       const data = await response.json()
-      console.log("[v0] Response data:", data)
+      console.log("[v0] Response data parsed:", data)
 
       if (response.ok) {
+        console.log("[v0] ===== UPDATE SUCCESSFUL =====")
         toast({
           title: "Uspešno ažurirano",
-          description: `Datum isteka za ${editingMember.first_name} ${editingMember.last_name} je uspešno ažuriran.`,
+          description: `Datum isteka za ${editingMember.first_name} ${editingMember.last_name} je uspešno ažuriran na ${formatDate(newExpiryDate)}.`,
         })
         setEditingMember(null)
+
         setTimeout(() => {
+          console.log("[v0] Reloading page to show updated member...")
           window.location.reload()
-        }, 500)
+        }, 1000)
       } else {
+        console.error("[v0] ===== UPDATE FAILED =====", data)
         toast({
           title: "Greška",
-          description: data.error || "Došlo je do greške pri ažuriranju datuma.",
+          description: data.error || data.details || "Došlo je do greške pri ažuriranju datuma.",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("[v0] Error updating expiry date:", error)
+      console.error("[v0] ===== UPDATE ERROR =====", {
+        error,
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+      })
       toast({
         title: "Greška",
-        description: "Došlo je do greške pri ažuriranju datuma.",
+        description: error instanceof Error ? error.message : "Došlo je do greške pri ažuriranju datuma.",
         variant: "destructive",
       })
     } finally {
       setIsUpdating(false)
+      console.log("[v0] ===== UPDATE REQUEST COMPLETE =====")
     }
   }
 
