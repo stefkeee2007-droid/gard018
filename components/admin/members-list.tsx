@@ -83,6 +83,8 @@ export function MembersList({ members }: { members: Member[] }) {
     if (!editingMember || !newExpiryDate) return
 
     setIsUpdating(true)
+    console.log("[v0] Updating expiry date:", { memberId: editingMember.id, newExpiryDate })
+
     try {
       const response = await fetch(`/api/members/${editingMember.id}`, {
         method: "PATCH",
@@ -90,18 +92,18 @@ export function MembersList({ members }: { members: Member[] }) {
         body: JSON.stringify({ expiry_date: newExpiryDate }),
       })
 
+      console.log("[v0] Response status:", response.status)
+      const data = await response.json()
+      console.log("[v0] Response data:", data)
+
       if (response.ok) {
         toast({
           title: "Uspešno ažurirano",
           description: `Datum isteka za ${editingMember.first_name} ${editingMember.last_name} je uspešno ažuriran.`,
         })
         setEditingMember(null)
-        // Refresh members list
-        if ((window as any).refreshMembers) {
-          ;(window as any).refreshMembers()
-        }
+        window.location.reload()
       } else {
-        const data = await response.json()
         toast({
           title: "Greška",
           description: data.error || "Došlo je do greške pri ažuriranju datuma.",

@@ -3,7 +3,6 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
 const sql = neon(process.env.DATABASE_URL!)
-
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -15,6 +14,17 @@ export async function GET(request: Request) {
   }
 
   try {
+    console.log("[GARD018] Starting membership check...")
+
+    const warningMembers = await sql`
+      SELECT id, first_name, last_name, email, expiry_date
+      FROM members
+      WHERE expiry_date = CURRENT_DATE + INTERVAL '3 days'
+      AND status = 'active'
+    `
+
+    console.log("[GARD018] Found members expiring in 3 days:", warningMembers.length)
+
     const expiringMembers = await sql`
       SELECT id, first_name, last_name, email, expiry_date
       FROM members
@@ -24,8 +34,42 @@ export async function GET(request: Request) {
 
     console.log("[GARD018] Found members expiring today:", expiringMembers.length)
 
-    const notifications = []
+    const warningNotifications = []
+    const expiryNotifications = []
     const failed = []
+
+    for (const member of warningMembers) {
+      try {
+        const emailsSent = await sendWarningEmails(member)
+
+        if (emailsSent) {
+          warningNotifications.push({
+            member: `${member.first_name} ${member.last_name}`,
+            email: member.email,
+            expiryDate: member.expiry_date,
+            type: "warning",
+          })
+          console.log(`[GARD018] Warning email sent to ${member.email}`)
+        } else {
+          failed.push({
+            member: `${member.first_name} ${member.last_name}`,
+            email: member.email,
+            reason: "Warning email sending failed",
+          })
+        }
+
+        if (warningMembers.indexOf(member) < warningMembers.length - 1) {
+          await sleep(500)
+        }
+      } catch (memberError) {
+        console.error(`[GARD018] Error processing warning for ${member.email}:`, memberError)
+        failed.push({
+          member: `${member.first_name} ${member.last_name}`,
+          email: member.email,
+          reason: memberError instanceof Error ? memberError.message : "Unknown error",
+        })
+      }
+    }
 
     for (const member of expiringMembers) {
       try {
@@ -38,28 +82,26 @@ export async function GET(request: Request) {
             WHERE id = ${member.id}
           `
 
-          notifications.push({
+          expiryNotifications.push({
             member: `${member.first_name} ${member.last_name}`,
             email: member.email,
             expiryDate: member.expiry_date,
+            type: "expiry",
           })
-
-          console.log(`[GARD018] Successfully processed ${member.email}`)
+          console.log(`[GARD018] Expiry email sent to ${member.email}, status updated to expired`)
         } else {
           failed.push({
             member: `${member.first_name} ${member.last_name}`,
             email: member.email,
-            reason: "Email sending failed",
+            reason: "Expiry email sending failed",
           })
-          console.error(`[GARD018] Failed to send email to ${member.email}, database NOT updated`)
         }
 
         if (expiringMembers.indexOf(member) < expiringMembers.length - 1) {
-          console.log("[GARD018] Pauza pre sledećeg slanja... (500ms)")
           await sleep(500)
         }
       } catch (memberError) {
-        console.error(`[GARD018] Error processing member ${member.email}:`, memberError)
+        console.error(`[GARD018] Error processing expiry for ${member.email}:`, memberError)
         failed.push({
           member: `${member.first_name} ${member.last_name}`,
           email: member.email,
@@ -70,9 +112,11 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Checked memberships. Found ${expiringMembers.length} expiring today.`,
-      notificationsSent: notifications.length,
-      notifications,
+      message: `Checked memberships. Found ${warningMembers.length} expiring in 3 days, ${expiringMembers.length} expiring today.`,
+      warningSent: warningNotifications.length,
+      expirySent: expiryNotifications.length,
+      warningNotifications,
+      expiryNotifications,
       failed: failed.length > 0 ? failed : undefined,
     })
   } catch (error) {
@@ -88,15 +132,56 @@ export async function GET(request: Request) {
   }
 }
 
+async function sendWarningEmails(member: any): Promise<boolean> {
+  try {
+    const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
+
+    // Send to member
+    const memberEmailResult = await resend.emails.send({
+      from: "GARD 018 <info@gard018.com>",
+      to: member.email,
+      replyTo: "info@gard018.com",
+      subject: "Obaveštenje - Članarina ističe za 3 dana - GARD 018",
+      html: getWarningEmailHTML(member, expiryDate),
+    })
+
+    if (memberEmailResult.error) {
+      console.error("[GARD018] Failed to send warning email to member:", memberEmailResult.error)
+      return false
+    }
+
+    // Send notification to founder
+    const founderEmailResult = await resend.emails.send({
+      from: "GARD 018 <info@gard018.com>",
+      to: "ognjen.boks19@gmail.com",
+      replyTo: "info@gard018.com",
+      subject: `Upozorenje - Članarina ističe za 3 dana - ${member.first_name} ${member.last_name}`,
+      html: getFounderWarningEmailHTML(member, expiryDate),
+    })
+
+    if (founderEmailResult.error) {
+      console.error("[GARD018] Failed to send warning email to founder:", founderEmailResult.error)
+    }
+
+    console.log("[GARD018] Warning emails sent successfully")
+    return true
+  } catch (error) {
+    console.error("[GARD018] Unexpected error in sendWarningEmails:", error)
+    return false
+  }
+}
+
 async function sendExpiryEmails(member: any): Promise<boolean> {
   try {
+    const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
+
     // Send to member
     const memberEmailResult = await resend.emails.send({
       from: "GARD 018 <info@gard018.com>",
       to: member.email,
       replyTo: "info@gard018.com",
       subject: "Obaveštenje - Istekla članarina - GARD 018",
-      html: getMemberEmailHTML(member),
+      html: getMemberEmailHTML(member, expiryDate),
     })
 
     if (memberEmailResult.error) {
@@ -110,12 +195,11 @@ async function sendExpiryEmails(member: any): Promise<boolean> {
       to: "ognjen.boks19@gmail.com",
       replyTo: "info@gard018.com",
       subject: `Članarina istekla - ${member.first_name} ${member.last_name}`,
-      html: getFounderEmailHTML(member),
+      html: getFounderEmailHTML(member, expiryDate),
     })
 
     if (founderEmailResult.error) {
       console.error("[GARD018] Failed to send email to founder:", founderEmailResult.error)
-      // Still return true because member email was sent successfully
     }
 
     console.log("[GARD018] Emails sent successfully to member and founder")
@@ -126,7 +210,151 @@ async function sendExpiryEmails(member: any): Promise<boolean> {
   }
 }
 
-function getMemberEmailHTML(member: any): string {
+function getWarningEmailHTML(member: any, expiryDate: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4; }
+          table { border-collapse: collapse; }
+          .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+          .header { background: linear-gradient(135deg, #8f1528 0%, #1a0000 100%); padding: 40px 30px; text-align: center; }
+          .header h1 { color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; }
+          .header p { color: #e0e0e0; margin: 10px 0 0 0; font-size: 14px; }
+          .content { padding: 40px 30px; color: #333333; line-height: 1.6; }
+          .content h2 { color: #8f1528; margin-top: 0; }
+          .warning-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0; }
+          .info-box { background-color: #f9f9f9; border-left: 4px solid #8f1528; padding: 20px; margin: 20px 0; }
+          .contact-list { list-style: none; padding: 0; }
+          .contact-list li { padding: 8px 0; }
+          .button { display: inline-block; background-color: #8f1528; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+          .footer { background-color: #1a1a1a; color: #999999; padding: 30px; text-align: center; font-size: 12px; }
+          .footer p { margin: 5px 0; }
+        </style>
+      </head>
+      <body>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="center" style="padding: 20px 0;">
+              <table class="container" width="600" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="header">
+                    <h1>GARD 018</h1>
+                    <p>Borilački Klub</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="content">
+                    <h2>Poštovani ${member.first_name} ${member.last_name},</h2>
+                    <p>Želimo da vas podsetimo da vaša članarina u klubu GARD 018 ističe za <strong>3 dana</strong>.</p>
+                    
+                    <div class="warning-box">
+                      <strong>⚠️ Datum isteka: ${expiryDate}</strong>
+                    </div>
+
+                    <p>Da biste nastavili sa treninzima bez prekida, molimo vas da obnovite članarinu na vreme.</p>
+
+                    <div class="info-box">
+                      <p><strong>Kako obnoviti članarinu?</strong></p>
+                      <p>Kontaktirajte nas putem telefona ili email-a, a možete nas posetiti i lično u teretani.</p>
+                    </div>
+
+                    <p>Za obnovu članarine i dodatne informacije:</p>
+                    <ul class="contact-list">
+                      <li><strong>Telefon:</strong> +381 62 202 420</li>
+                      <li><strong>Email:</strong> info@gard018.com</li>
+                      <li><strong>Adresa:</strong> Niš, Srbija</li>
+                    </ul>
+
+                    <a href="mailto:info@gard018.com" class="button">Kontaktirajte nas</a>
+
+                    <p style="margin-top: 30px; color: #666; font-size: 14px;">
+                      Vidimo se na treningu!
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="footer">
+                    <p><strong>GARD 018 Borilački Klub</strong></p>
+                    <p>Niš, Srbija | +381 62 202 420</p>
+                    <p style="margin-top: 15px;">
+                      Ova poruka je poslata automatski jer vaša članarina ističe za 3 dana.<br>
+                      Ako imate pitanja, kontaktirajte nas na info@gard018.com
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+}
+
+function getFounderWarningEmailHTML(member: any, expiryDate: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4; }
+          table { border-collapse: collapse; }
+          .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+          .header { background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); padding: 30px; text-align: center; }
+          .header h1 { color: #ffffff; margin: 0; font-size: 28px; font-weight: bold; }
+          .content { padding: 30px; color: #333333; line-height: 1.6; }
+          .content h2 { color: #ffc107; margin-top: 0; }
+          .member-info { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0; }
+          .member-info p { margin: 8px 0; }
+          .footer { background-color: #1a1a1a; color: #999999; padding: 20px; text-align: center; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="center" style="padding: 20px 0;">
+              <table class="container" width="600" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="header">
+                    <h1>⚠️ Upozorenje - Članarina ističe</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="content">
+                    <h2>Članarina ističe za 3 dana</h2>
+                    <p>Korisniku će za 3 dana isteći članarina. Automatski je poslat email podsetnik.</p>
+                    
+                    <div class="member-info">
+                      <p><strong>Ime:</strong> ${member.first_name} ${member.last_name}</p>
+                      <p><strong>Email:</strong> ${member.email}</p>
+                      <p><strong>Datum isteka:</strong> ${expiryDate}</p>
+                      <p><strong>Tip upozorenja:</strong> 3 dana pre isteka</p>
+                    </div>
+
+                    <p>Preporučujemo da kontaktirate člana kako biste podsetili na obnovu članarine.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="footer">
+                    <p>GARD 018 - Automatska notifikacija</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+}
+
+function getMemberEmailHTML(member: any, expiryDate: string): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -164,7 +392,7 @@ function getMemberEmailHTML(member: any): string {
                 <tr>
                   <td class="content">
                     <h2>Poštovani ${member.first_name} ${member.last_name},</h2>
-                    <p>Obaveštavamo vas da je vaša članarina u klubu GARD 018 istekla danas <strong>${new Date(member.expiry_date).toLocaleDateString("sr-RS")}</strong>.</p>
+                    <p>Obaveštavamo vas da je vaša članarina u klubu GARD 018 istekla danas <strong>${expiryDate}</strong>.</p>
                     
                     <div class="info-box">
                       <strong>Da biste nastavili sa treninzima, molimo vas da obnovite članarinu.</strong>
@@ -203,7 +431,7 @@ function getMemberEmailHTML(member: any): string {
   `
 }
 
-function getFounderEmailHTML(member: any): string {
+function getFounderEmailHTML(member: any, expiryDate: string): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -241,7 +469,7 @@ function getFounderEmailHTML(member: any): string {
                     <div class="member-info">
                       <p><strong>Ime:</strong> ${member.first_name} ${member.last_name}</p>
                       <p><strong>Email:</strong> ${member.email}</p>
-                      <p><strong>Datum isteka:</strong> ${new Date(member.expiry_date).toLocaleDateString("sr-RS")}</p>
+                      <p><strong>Datum isteka:</strong> ${expiryDate}</p>
                     </div>
 
                     <p>Status člana je automatski promenjen u "expired" u bazi podataka.</p>
