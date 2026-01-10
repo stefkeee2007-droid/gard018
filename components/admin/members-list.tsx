@@ -83,16 +83,29 @@ export function MembersList({ members }: { members: Member[] }) {
     if (!editingMember || !newExpiryDate) return
 
     setIsUpdating(true)
-    console.log("[v0] Updating expiry date:", { memberId: editingMember.id, newExpiryDate })
+
+    const requestData = { expiry_date: newExpiryDate }
+    console.log("[v0] Slanje podataka:", {
+      memberId: editingMember.id,
+      requestData,
+      url: `/api/members/${editingMember.id}`,
+      method: "PATCH",
+    })
 
     try {
       const response = await fetch(`/api/members/${editingMember.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expiry_date: newExpiryDate }),
+        body: JSON.stringify(requestData),
       })
 
-      console.log("[v0] Response status:", response.status)
+      console.log("[v0] Odgovor servera:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+      })
+
       const data = await response.json()
       console.log("[v0] Response data:", data)
 
@@ -102,7 +115,9 @@ export function MembersList({ members }: { members: Member[] }) {
           description: `Datum isteka za ${editingMember.first_name} ${editingMember.last_name} je uspešno ažuriran.`,
         })
         setEditingMember(null)
-        window.location.reload()
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
       } else {
         toast({
           title: "Greška",
