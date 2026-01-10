@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { Calendar, Mail, User, AlertCircle, CheckCircle, Trash2, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
@@ -71,12 +73,55 @@ export function MembersList({ members }: { members: Member[] }) {
     return `${day}.${month}.${year}.`
   }
 
+  const parseDateToISO = (ddmmyyyy: string): string | null => {
+    const cleaned = ddmmyyyy.replace(/\./g, "")
+    if (cleaned.length !== 8) return null
+
+    const day = cleaned.substring(0, 2)
+    const month = cleaned.substring(2, 4)
+    const year = cleaned.substring(4, 8)
+
+    const dayNum = Number.parseInt(day, 10)
+    const monthNum = Number.parseInt(month, 10)
+    const yearNum = Number.parseInt(year, 10)
+
+    if (dayNum < 1 || dayNum > 31 || monthNum < 1 || monthNum > 12 || yearNum < 2020) {
+      return null
+    }
+
+    return `${year}-${month}-${day}`
+  }
+
+  const formatISOToDisplay = (isoDate: string): string => {
+    const [year, month, day] = isoDate.split("-")
+    return `${day}.${month}.${year}`
+  }
+
+  const handleDateInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/[^\d]/g, "")
+
+    if (value.length > 8) {
+      value = value.substring(0, 8)
+    }
+
+    let formatted = ""
+    for (let i = 0; i < value.length; i++) {
+      if (i === 2 || i === 4) {
+        formatted += "."
+      }
+      formatted += value[i]
+    }
+
+    setNewExpiryDate(formatted)
+  }
+
   const handleOpenEditModal = (member: Member) => {
     setEditingMember(member)
-    // Convert expiry_date to YYYY-MM-DD format for input
     const date = new Date(member.expiry_date)
-    const formattedDate = date.toISOString().split("T")[0]
-    setNewExpiryDate(formattedDate)
+    const day = String(date.getDate()).padStart(2, "0")
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const year = date.getFullYear()
+    setNewExpiryDate(`${day}.${month}.${year}`)
   }
 
   const handleUpdateExpiryDate = async () => {
@@ -88,9 +133,20 @@ export function MembersList({ members }: { members: Member[] }) {
       return
     }
 
+    const expiryDateISO = parseDateToISO(newExpiryDate)
+
+    if (!expiryDateISO) {
+      toast({
+        title: "Грешка",
+        description: "Невалидан формат датума. Користите DD.MM.YYYY (нпр. 31.12.2026)",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsUpdating(true)
 
-    const requestData = { expiry_date: newExpiryDate }
+    const requestData = { expiry_date: expiryDateISO }
     const url = `/api/members/${editingMember.id}`
 
     console.log("[v0] ===== STARTING UPDATE REQUEST =====")
@@ -98,7 +154,8 @@ export function MembersList({ members }: { members: Member[] }) {
       memberId: editingMember.id,
       memberName: `${editingMember.first_name} ${editingMember.last_name}`,
       currentExpiryDate: editingMember.expiry_date,
-      newExpiryDate: newExpiryDate,
+      newExpiryDateDisplay: newExpiryDate,
+      newExpiryDateISO: expiryDateISO,
       requestData,
       url,
       method: "PATCH",
@@ -138,8 +195,8 @@ export function MembersList({ members }: { members: Member[] }) {
       if (response.ok) {
         console.log("[v0] ===== UPDATE SUCCESSFUL =====")
         toast({
-          title: "Uspešno ažurirano",
-          description: `Datum isteka za ${editingMember.first_name} ${editingMember.last_name} je uspešno ažuriran na ${formatDate(newExpiryDate)}.`,
+          title: "Успешно ажурирано",
+          description: `Датум истека за ${editingMember.first_name} ${editingMember.last_name} је успешно ажуриран на ${newExpiryDate}.`,
         })
         setEditingMember(null)
 
@@ -314,19 +371,21 @@ export function MembersList({ members }: { members: Member[] }) {
               <label htmlFor="expiry-date" className="text-sm font-medium">
                 Нови датум истека
               </label>
-              <p className="text-xs text-muted-foreground">Формат: DD.MM.YYYY</p>
+              <p className="text-xs text-muted-foreground">Унесите датум у формату DD.MM.YYYY (нпр. 31.12.2026)</p>
               <input
                 id="expiry-date"
-                type="date"
-                lang="sr-RS"
+                type="text"
+                placeholder="DD.MM.YYYY"
                 value={newExpiryDate}
-                onChange={(e) => setNewExpiryDate(e.target.value)}
+                onChange={handleDateInput}
+                maxLength={10}
                 className="w-full px-3 py-2 border border-input bg-background rounded-md"
               />
-              {newExpiryDate && (
-                <p className="text-sm font-medium text-foreground">
-                  Изабрани датум: <span className="text-primary">{formatDate(newExpiryDate)}</span>
-                </p>
+              {newExpiryDate.length === 10 && parseDateToISO(newExpiryDate) && (
+                <p className="text-sm font-medium text-green-600">✓ Валидан датум</p>
+              )}
+              {newExpiryDate.length === 10 && !parseDateToISO(newExpiryDate) && (
+                <p className="text-sm font-medium text-red-600">✗ Невалидан формат</p>
               )}
             </div>
           </div>

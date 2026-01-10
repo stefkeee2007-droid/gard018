@@ -13,13 +13,41 @@ export function AddMemberForm() {
   const [errorMessage, setErrorMessage] = useState("")
   const [selectedDate, setSelectedDate] = useState<string>("")
 
-  const formatDateDisplay = (dateString: string) => {
-    if (!dateString) return ""
-    const date = new Date(dateString)
-    const day = String(date.getDate()).padStart(2, "0")
-    const month = String(date.getMonth() + 1).padStart(2, "0")
-    const year = date.getFullYear()
-    return `${day}.${month}.${year}.`
+  const parseDateToISO = (ddmmyyyy: string): string | null => {
+    const cleaned = ddmmyyyy.replace(/\./g, "")
+    if (cleaned.length !== 8) return null
+
+    const day = cleaned.substring(0, 2)
+    const month = cleaned.substring(2, 4)
+    const year = cleaned.substring(4, 8)
+
+    const dayNum = Number.parseInt(day, 10)
+    const monthNum = Number.parseInt(month, 10)
+    const yearNum = Number.parseInt(year, 10)
+
+    if (dayNum < 1 || dayNum > 31 || monthNum < 1 || monthNum > 12 || yearNum < 2020) {
+      return null
+    }
+
+    return `${year}-${month}-${day}`
+  }
+
+  const handleDateInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/[^\d]/g, "")
+
+    if (value.length > 8) {
+      value = value.substring(0, 8)
+    }
+
+    let formatted = ""
+    for (let i = 0; i < value.length; i++) {
+      if (i === 2 || i === 4) {
+        formatted += "."
+      }
+      formatted += value[i]
+    }
+
+    setSelectedDate(formatted)
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -30,14 +58,21 @@ export function AddMemberForm() {
 
     const formData = new FormData(e.currentTarget)
 
-    const expiryDateInput = formData.get("expiryDate") as string
+    const expiryDateISO = parseDateToISO(selectedDate)
+
+    if (!expiryDateISO) {
+      setErrorMessage("Невалидан формат датума. Користите DD.MM.YYYY (нпр. 31.12.2026)")
+      setSubmitStatus("error")
+      setLoading(false)
+      return
+    }
 
     const data = {
       first_name: formData.get("firstName"),
       last_name: formData.get("lastName"),
       email: formData.get("email"),
       start_date: new Date().toISOString().split("T")[0], // Today
-      expiry_date: expiryDateInput,
+      expiry_date: expiryDateISO,
       status: "active",
     }
 
@@ -134,20 +169,17 @@ export function AddMemberForm() {
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">Датум истека чланарине</label>
           <input
-            type="date"
+            type="text"
             name="expiryDate"
-            lang="sr-RS"
+            placeholder="DD.MM.YYYY"
             required
             disabled={loading}
-            min={new Date().toISOString().split("T")[0]}
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={handleDateInput}
+            maxLength={10}
             className="w-full px-4 py-2 bg-background/50 border border-primary/20 rounded-lg text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
           />
-          {selectedDate && (
-            <p className="text-sm text-primary mt-1">Изабрани датум: {formatDateDisplay(selectedDate)}</p>
-          )}
-          <p className="text-xs text-muted-foreground mt-1">Изаберите било који датум у будућности</p>
+          <p className="text-xs text-muted-foreground mt-1">Формат: DD.MM.YYYY (нпр. 31.12.2026)</p>
         </div>
 
         <Button
