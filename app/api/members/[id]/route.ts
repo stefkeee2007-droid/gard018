@@ -46,6 +46,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Nevažeći datum isteka" }, { status: 400 })
     }
 
+    // Ako je danas 12.01.2026, članarina ističe u 00:00 tog dana (na početku)
     const expiryDateObj = new Date(expiry_date + "T00:00:00Z")
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -55,10 +56,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       today: today.toISOString(),
       expiryTime: expiryDateObj.getTime(),
       todayTime: today.getTime(),
-      isExpired: expiryDateObj < today,
+      comparison: expiryDateObj.getTime() <= today.getTime() ? "expired or expiring today" : "active",
     })
 
-    const newStatus = expiryDateObj >= today ? "active" : "expired"
+    const newStatus = expiryDateObj.getTime() > today.getTime() ? "active" : "expired"
 
     console.log("[v0] Calculated new status:", { newStatus, willUpdate: true })
 

@@ -33,21 +33,61 @@ export function AddMemberForm() {
   }
 
   const handleDateInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/[^\d]/g, "")
+    const input = e.target
+    let value = input.value.replace(/[^\d.]/g, "")
 
-    if (value.length > 8) {
-      value = value.substring(0, 8)
+    // Ukloni višestruke tačke
+    const parts = value.split(".")
+    if (parts.length > 3) {
+      value = parts.slice(0, 3).join(".")
     }
 
-    let formatted = ""
-    for (let i = 0; i < value.length; i++) {
-      if (i === 2 || i === 4) {
-        formatted += "."
+    // Auto-padding kada korisnik unese tačku nakon jednocifrenog broja
+    if (value.endsWith(".")) {
+      const beforeDot = value.slice(0, -1)
+      const lastPart = beforeDot.split(".").pop() || ""
+
+      if (lastPart.length === 1) {
+        const otherParts = beforeDot.split(".").slice(0, -1)
+        value = [...otherParts, "0" + lastPart].join(".") + "."
       }
-      formatted += value[i]
     }
 
-    setSelectedDate(formatted)
+    // Ograniči dužinu svakog dela
+    const segments = value.split(".")
+    if (segments[0] && segments[0].length > 2) segments[0] = segments[0].substring(0, 2)
+    if (segments[1] && segments[1].length > 2) segments[1] = segments[1].substring(0, 2)
+    if (segments[2] && segments[2].length > 4) segments[2] = segments[2].substring(0, 4)
+    value = segments.join(".")
+
+    // Auto-format: dodaj tačku nakon 2 cifre (dan) i 2 cifre (mesec)
+    const digitsOnly = value.replace(/\./g, "")
+    if (digitsOnly.length >= 2 && !value.includes(".")) {
+      value = digitsOnly.substring(0, 2) + "." + digitsOnly.substring(2)
+    }
+    if (digitsOnly.length >= 4 && value.split(".").length === 2) {
+      const [day, rest] = value.split(".")
+      value = day + "." + rest.substring(0, 2) + "." + rest.substring(2)
+    }
+
+    setSelectedDate(value)
+  }
+
+  const handleDateBlur = () => {
+    if (!selectedDate) return
+
+    const parts = selectedDate.split(".")
+    if (parts.length !== 3) return
+
+    let [day, month, year] = parts
+
+    if (day.length === 1) day = "0" + day
+    if (month.length === 1) month = "0" + month
+
+    const formatted = `${day}.${month}.${year}`
+    if (formatted !== selectedDate) {
+      setSelectedDate(formatted)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -176,6 +216,7 @@ export function AddMemberForm() {
             disabled={loading}
             value={selectedDate}
             onChange={handleDateInput}
+            onBlur={handleDateBlur}
             maxLength={10}
             className="w-full px-4 py-2 bg-background/50 border border-primary/20 rounded-lg text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
           />
