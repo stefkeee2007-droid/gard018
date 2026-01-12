@@ -14,12 +14,40 @@ export function AddMemberForm() {
   const [selectedDate, setSelectedDate] = useState<string>("")
 
   const parseDateToISO = (ddmmyyyy: string): string | null => {
+    // Ukloni tačke
     const cleaned = ddmmyyyy.replace(/\./g, "")
-    if (cleaned.length !== 8) return null
 
-    const day = cleaned.substring(0, 2)
-    const month = cleaned.substring(2, 4)
-    const year = cleaned.substring(4, 8)
+    // Pokušaj da parsiraš različite formate
+    let day: string, month: string, year: string
+
+    if (cleaned.length === 8) {
+      // Format: DDMMYYYY
+      day = cleaned.substring(0, 2)
+      month = cleaned.substring(2, 4)
+      year = cleaned.substring(4, 8)
+    } else if (cleaned.length === 7) {
+      // Format: D.MM.YYYY ili DD.M.YYYY
+      const parts = ddmmyyyy.split(".")
+      if (parts.length === 3) {
+        day = parts[0].padStart(2, "0")
+        month = parts[1].padStart(2, "0")
+        year = parts[2]
+      } else {
+        return null
+      }
+    } else if (cleaned.length === 6) {
+      // Format: D.M.YYYY
+      const parts = ddmmyyyy.split(".")
+      if (parts.length === 3) {
+        day = parts[0].padStart(2, "0")
+        month = parts[1].padStart(2, "0")
+        year = parts[2]
+      } else {
+        return null
+      }
+    } else {
+      return null
+    }
 
     const dayNum = Number.parseInt(day, 10)
     const monthNum = Number.parseInt(month, 10)

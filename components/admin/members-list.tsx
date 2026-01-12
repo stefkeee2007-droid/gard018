@@ -77,12 +77,40 @@ export function MembersList({ members }: { members: Member[] }) {
   }
 
   const parseDateToISO = (ddmmyyyy: string): string | null => {
+    // Ukloni tačke
     const cleaned = ddmmyyyy.replace(/\./g, "")
-    if (cleaned.length !== 8) return null
 
-    const day = cleaned.substring(0, 2)
-    const month = cleaned.substring(2, 4)
-    const year = cleaned.substring(4, 8)
+    // Pokušaj da parsiraš različite formate
+    let day: string, month: string, year: string
+
+    if (cleaned.length === 8) {
+      // Format: DDMMYYYY
+      day = cleaned.substring(0, 2)
+      month = cleaned.substring(2, 4)
+      year = cleaned.substring(4, 8)
+    } else if (cleaned.length === 7) {
+      // Format: D.MM.YYYY ili DD.M.YYYY
+      const parts = ddmmyyyy.split(".")
+      if (parts.length === 3) {
+        day = parts[0].padStart(2, "0")
+        month = parts[1].padStart(2, "0")
+        year = parts[2]
+      } else {
+        return null
+      }
+    } else if (cleaned.length === 6) {
+      // Format: D.M.YYYY
+      const parts = ddmmyyyy.split(".")
+      if (parts.length === 3) {
+        day = parts[0].padStart(2, "0")
+        month = parts[1].padStart(2, "0")
+        year = parts[2]
+      } else {
+        return null
+      }
+    } else {
+      return null
+    }
 
     const dayNum = Number.parseInt(day, 10)
     const monthNum = Number.parseInt(month, 10)
@@ -242,7 +270,7 @@ export function MembersList({ members }: { members: Member[] }) {
         stack: error instanceof Error ? error.stack : undefined,
       })
       toast({
-        title: "Greška",
+        title: "Grešка",
         description: error instanceof Error ? error.message : "Došlo je do greške pri ažuriranju datuma.",
         variant: "destructive",
       })
@@ -293,6 +321,20 @@ export function MembersList({ members }: { members: Member[] }) {
     }
   }
 
+  const getDisplayStatus = (expiryDate: string): string => {
+    const expiry = new Date(expiryDate)
+    const today = new Date()
+    expiry.setHours(0, 0, 0, 0)
+    today.setHours(0, 0, 0, 0)
+
+    // If expiry date is today or in the past, it's expired
+    if (expiry.getTime() <= today.getTime()) {
+      return "expired"
+    }
+
+    return "active"
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -314,9 +356,11 @@ export function MembersList({ members }: { members: Member[] }) {
                     <h3 className="text-xl font-semibold text-foreground">
                       {member.first_name} {member.last_name}
                     </h3>
-                    <span className={`flex items-center gap-1 text-sm ${getStatusColor(member.status)}`}>
-                      {getStatusIcon(member.status)}
-                      {member.status}
+                    <span
+                      className={`flex items-center gap-1 text-sm ${getStatusColor(getDisplayStatus(member.expiry_date))}`}
+                    >
+                      {getStatusIcon(getDisplayStatus(member.expiry_date))}
+                      {getDisplayStatus(member.expiry_date)}
                     </span>
                   </div>
 
@@ -350,7 +394,7 @@ export function MembersList({ members }: { members: Member[] }) {
                     </Button>
                   </div>
 
-                  {isExpiringSoon(member.expiry_date) && member.status === "active" && (
+                  {isExpiringSoon(member.expiry_date) && getDisplayStatus(member.expiry_date) === "active" && (
                     <div className="flex items-center gap-2 text-yellow-500 text-sm">
                       <AlertCircle className="w-4 h-4" />
                       <span>Чланарина ускоро истиче!</span>
@@ -405,10 +449,10 @@ export function MembersList({ members }: { members: Member[] }) {
                 maxLength={10}
                 className="w-full px-3 py-2 border border-input bg-background rounded-md"
               />
-              {newExpiryDate.length >= 8 && parseDateToISO(newExpiryDate) && (
+              {newExpiryDate.length >= 6 && parseDateToISO(newExpiryDate) && (
                 <p className="text-sm font-medium text-green-600">✓ Валидан датум</p>
               )}
-              {newExpiryDate.length >= 8 && !parseDateToISO(newExpiryDate) && (
+              {newExpiryDate.length >= 6 && !parseDateToISO(newExpiryDate) && (
                 <p className="text-sm font-medium text-red-600">✗ Невалидан формат</p>
               )}
             </div>
