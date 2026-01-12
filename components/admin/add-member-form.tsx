@@ -33,41 +33,14 @@ export function AddMemberForm() {
   }
 
   const handleDateInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target
-    let value = input.value.replace(/[^\d.]/g, "")
+    let value = e.target.value
 
-    // Ukloni višestruke tačke
-    const parts = value.split(".")
-    if (parts.length > 3) {
-      value = parts.slice(0, 3).join(".")
-    }
+    // Dozvoli samo brojeve i tačke
+    value = value.replace(/[^\d.]/g, "")
 
-    // Auto-padding kada korisnik unese tačku nakon jednocifrenog broja
-    if (value.endsWith(".")) {
-      const beforeDot = value.slice(0, -1)
-      const lastPart = beforeDot.split(".").pop() || ""
-
-      if (lastPart.length === 1) {
-        const otherParts = beforeDot.split(".").slice(0, -1)
-        value = [...otherParts, "0" + lastPart].join(".") + "."
-      }
-    }
-
-    // Ograniči dužinu svakog dela
-    const segments = value.split(".")
-    if (segments[0] && segments[0].length > 2) segments[0] = segments[0].substring(0, 2)
-    if (segments[1] && segments[1].length > 2) segments[1] = segments[1].substring(0, 2)
-    if (segments[2] && segments[2].length > 4) segments[2] = segments[2].substring(0, 4)
-    value = segments.join(".")
-
-    // Auto-format: dodaj tačku nakon 2 cifre (dan) i 2 cifre (mesec)
-    const digitsOnly = value.replace(/\./g, "")
-    if (digitsOnly.length >= 2 && !value.includes(".")) {
-      value = digitsOnly.substring(0, 2) + "." + digitsOnly.substring(2)
-    }
-    if (digitsOnly.length >= 4 && value.split(".").length === 2) {
-      const [day, rest] = value.split(".")
-      value = day + "." + rest.substring(0, 2) + "." + rest.substring(2)
+    // Maksimalno 10 karaktera (DD.MM.YYYY)
+    if (value.length > 10) {
+      value = value.substring(0, 10)
     }
 
     setSelectedDate(value)
@@ -76,17 +49,29 @@ export function AddMemberForm() {
   const handleDateBlur = () => {
     if (!selectedDate) return
 
+    const value = selectedDate.replace(/\./g, "")
+
+    // Ako ima tačno 8 cifara, formatiraj automatski
+    if (value.length === 8) {
+      const day = value.substring(0, 2)
+      const month = value.substring(2, 4)
+      const year = value.substring(4, 8)
+      setSelectedDate(`${day}.${month}.${year}`)
+      return
+    }
+
+    // Pokušaj da parsiraj trenutni format
     const parts = selectedDate.split(".")
-    if (parts.length !== 3) return
+    if (parts.length === 3) {
+      let [day, month, year] = parts
 
-    let [day, month, year] = parts
+      // Dodaj leading zero
+      if (day && day.length === 1) day = "0" + day
+      if (month && month.length === 1) month = "0" + month
 
-    if (day.length === 1) day = "0" + day
-    if (month.length === 1) month = "0" + month
-
-    const formatted = `${day}.${month}.${year}`
-    if (formatted !== selectedDate) {
-      setSelectedDate(formatted)
+      if (day && month && year) {
+        setSelectedDate(`${day}.${month}.${year}`)
+      }
     }
   }
 
