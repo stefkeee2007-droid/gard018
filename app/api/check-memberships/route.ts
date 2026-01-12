@@ -5,8 +5,6 @@ import { Resend } from "resend"
 const sql = neon(process.env.DATABASE_URL!)
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization")
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -34,81 +32,127 @@ export async function GET(request: Request) {
 
     console.log("[GARD018] Found members expiring today:", expiringMembers.length)
 
-    const warningNotifications = []
-    const expiryNotifications = []
-    const failed = []
+    const warningEmailsData = warningMembers.map((member: any) => {
+      const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
+      return {
+        from: "GARD 018 <info@gard018.com>",
+        to: member.email,
+        replyTo: "info@gard018.com",
+        subject: "Obaveštenje - Članarina ističe za 3 dana - GARD 018",
+        html: getWarningEmailHTML(member, expiryDate),
+      }
+    })
 
-    for (const member of warningMembers) {
+    let warningNotifications: any[] = []
+    let warningFailed: any[] = []
+
+    if (warningEmailsData.length > 0) {
       try {
-        const emailsSent = await sendWarningEmailToMemberOnly(member)
+        // Send up to 100 emails in one batch request
+        const batchResult = await resend.batch.send(warningEmailsData)
 
-        if (emailsSent) {
-          warningNotifications.push({
-            member: `${member.first_name} ${member.last_name}`,
-            email: member.email,
-            expiryDate: member.expiry_date,
-            type: "warning",
-          })
-          console.log(`[GARD018] Warning email sent to ${member.email}`)
+        if (batchResult.error) {
+          console.error("[GARD018] Batch send warning emails failed:", batchResult.error)
+          warningFailed = warningMembers.map((m: any) => ({
+            member: `${m.first_name} ${m.last_name}`,
+            email: m.email,
+            reason: batchResult.error?.message || "Batch send failed",
+          }))
         } else {
-          failed.push({
-            member: `${member.first_name} ${member.last_name}`,
-            email: member.email,
-            reason: "Warning email sending failed",
-          })
+          console.log(`[GARD018] Successfully sent ${warningEmailsData.length} warning emails via Batch API`)
+          warningNotifications = warningMembers.map((m: any) => ({
+            member: `${m.first_name} ${m.last_name}`,
+            email: m.email,
+            expiryDate: m.expiry_date,
+            type: "warning",
+          }))
         }
-
-        if (warningMembers.indexOf(member) < warningMembers.length - 1) {
-          await sleep(500)
-        }
-      } catch (memberError) {
-        console.error(`[GARD018] Error processing warning for ${member.email}:`, memberError)
-        failed.push({
-          member: `${member.first_name} ${member.last_name}`,
-          email: member.email,
-          reason: memberError instanceof Error ? memberError.message : "Unknown error",
-        })
+      } catch (error) {
+        console.error("[GARD018] Error sending batch warning emails:", error)
+        warningFailed = warningMembers.map((m: any) => ({
+          member: `${m.first_name} ${m.last_name}`,
+          email: m.email,
+          reason: error instanceof Error ? error.message : "Unknown error",
+        }))
       }
     }
+
+    const expiryEmailsData: any[] = []
+    const memberIdMap: Map<string, any> = new Map()
 
     for (const member of expiringMembers) {
+      const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
+      const emailId = `member-${member.id}`
+      memberIdMap.set(emailId, member)
+
+      // Email to member
+      expiryEmailsData.push({
+        from: "GARD 018 <info@gard018.com>",
+        to: member.email,
+        replyTo: "info@gard018.com",
+        subject: "Obaveštenje - Istekla članarina - GARD 018",
+        html: getMemberEmailHTML(member, expiryDate),
+      })
+
+      // Email to founder
+      expiryEmailsData.push({
+        from: "GARD 018 <info@gard018.com>",
+        to: "ognjen.boks19@gmail.com",
+        replyTo: "info@gard018.com",
+        subject: `Članarina istekla - ${member.first_name} ${member.last_name}`,
+        html: getFounderEmailHTML(member, expiryDate),
+      })
+    }
+
+    const expiryNotifications: any[] = []
+    let expiryFailed: any[] = []
+
+    if (expiryEmailsData.length > 0) {
       try {
-        const emailsSent = await sendExpiryEmails(member)
+        // Send up to 100 emails in one batch request (50 members = 100 emails)
+        const batchResult = await resend.batch.send(expiryEmailsData)
 
-        if (emailsSent) {
-          await sql`
-            UPDATE members
-            SET status = 'expired', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${member.id}
-          `
-
-          expiryNotifications.push({
-            member: `${member.first_name} ${member.last_name}`,
-            email: member.email,
-            expiryDate: member.expiry_date,
-            type: "expiry",
-          })
-          console.log(`[GARD018] Expiry email sent to ${member.email}, status updated to expired`)
+        if (batchResult.error) {
+          console.error("[GARD018] Batch send expiry emails failed:", batchResult.error)
+          expiryFailed = expiringMembers.map((m: any) => ({
+            member: `${m.first_name} ${m.last_name}`,
+            email: m.email,
+            reason: batchResult.error?.message || "Batch send failed",
+          }))
         } else {
-          failed.push({
-            member: `${member.first_name} ${member.last_name}`,
-            email: member.email,
-            reason: "Expiry email sending failed",
-          })
-        }
+          console.log(`[GARD018] Successfully sent ${expiryEmailsData.length} expiry emails via Batch API`)
 
-        if (expiringMembers.indexOf(member) < expiringMembers.length - 1) {
-          await sleep(500)
+          // Update status for all expiring members
+          for (const member of expiringMembers) {
+            try {
+              await sql`
+                UPDATE members
+                SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+                WHERE id = ${member.id}
+              `
+
+              expiryNotifications.push({
+                member: `${member.first_name} ${member.last_name}`,
+                email: member.email,
+                expiryDate: member.expiry_date,
+                type: "expiry",
+              })
+            } catch (updateError) {
+              console.error(`[GARD018] Failed to update status for member ${member.id}:`, updateError)
+            }
+          }
         }
-      } catch (memberError) {
-        console.error(`[GARD018] Error processing expiry for ${member.email}:`, memberError)
-        failed.push({
-          member: `${member.first_name} ${member.last_name}`,
-          email: member.email,
-          reason: memberError instanceof Error ? memberError.message : "Unknown error",
-        })
+      } catch (error) {
+        console.error("[GARD018] Error sending batch expiry emails:", error)
+        expiryFailed = expiringMembers.map((m: any) => ({
+          member: `${m.first_name} ${m.last_name}`,
+          email: m.email,
+          reason: error instanceof Error ? error.message : "Unknown error",
+        }))
       }
     }
+
+    const allFailed = [...warningFailed, ...expiryFailed]
 
     return NextResponse.json({
       success: true,
@@ -117,7 +161,7 @@ export async function GET(request: Request) {
       expirySent: expiryNotifications.length,
       warningNotifications,
       expiryNotifications,
-      failed: failed.length > 0 ? failed : undefined,
+      failed: allFailed.length > 0 ? allFailed : undefined,
     })
   } catch (error) {
     console.error("[GARD018] Critical error checking memberships:", error)
@@ -129,68 +173,6 @@ export async function GET(request: Request) {
       },
       { status: 500 },
     )
-  }
-}
-
-async function sendWarningEmailToMemberOnly(member: any): Promise<boolean> {
-  try {
-    const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
-
-    const memberEmailResult = await resend.emails.send({
-      from: "GARD 018 <info@gard018.com>",
-      to: member.email,
-      replyTo: "info@gard018.com",
-      subject: "Obaveštenje - Članarina ističe za 3 dana - GARD 018",
-      html: getWarningEmailHTML(member, expiryDate),
-    })
-
-    if (memberEmailResult.error) {
-      console.error("[GARD018] Failed to send warning email to member:", memberEmailResult.error)
-      return false
-    }
-
-    console.log("[GARD018] Warning email sent successfully to member only")
-    return true
-  } catch (error) {
-    console.error("[GARD018] Unexpected error in sendWarningEmailToMemberOnly:", error)
-    return false
-  }
-}
-
-async function sendExpiryEmails(member: any): Promise<boolean> {
-  try {
-    const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
-
-    const memberEmailResult = await resend.emails.send({
-      from: "GARD 018 <info@gard018.com>",
-      to: member.email,
-      replyTo: "info@gard018.com",
-      subject: "Obaveštenje - Istekla članarina - GARD 018",
-      html: getMemberEmailHTML(member, expiryDate),
-    })
-
-    if (memberEmailResult.error) {
-      console.error("[GARD018] Failed to send email to member:", memberEmailResult.error)
-      return false
-    }
-
-    const founderEmailResult = await resend.emails.send({
-      from: "GARD 018 <info@gard018.com>",
-      to: "ognjen.boks19@gmail.com",
-      replyTo: "info@gard018.com",
-      subject: `Članarina istekla - ${member.first_name} ${member.last_name}`,
-      html: getFounderEmailHTML(member, expiryDate),
-    })
-
-    if (founderEmailResult.error) {
-      console.error("[GARD018] Failed to send email to founder:", founderEmailResult.error)
-    }
-
-    console.log("[GARD018] Emails sent successfully to member and founder")
-    return true
-  } catch (error) {
-    console.error("[GARD018] Unexpected error in sendExpiryEmails:", error)
-    return false
   }
 }
 
