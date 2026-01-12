@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const warningMembers = await sql`
       SELECT id, first_name, last_name, email, expiry_date
       FROM members
-      WHERE expiry_date = CURRENT_DATE + INTERVAL '3 days'
+      WHERE expiry_date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date + INTERVAL '3 days'
       AND status = 'active'
     `
 
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const expiringMembers = await sql`
       SELECT id, first_name, last_name, email, expiry_date
       FROM members
-      WHERE expiry_date = CURRENT_DATE
+      WHERE expiry_date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date
       AND status = 'active'
     `
 
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
     for (const member of warningMembers) {
       try {
-        const emailsSent = await sendWarningEmails(member)
+        const emailsSent = await sendWarningEmailToMemberOnly(member)
 
         if (emailsSent) {
           warningNotifications.push({
@@ -132,11 +132,10 @@ export async function GET(request: Request) {
   }
 }
 
-async function sendWarningEmails(member: any): Promise<boolean> {
+async function sendWarningEmailToMemberOnly(member: any): Promise<boolean> {
   try {
     const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
 
-    // Send to member
     const memberEmailResult = await resend.emails.send({
       from: "GARD 018 <info@gard018.com>",
       to: member.email,
@@ -150,23 +149,10 @@ async function sendWarningEmails(member: any): Promise<boolean> {
       return false
     }
 
-    // Send notification to founder
-    const founderEmailResult = await resend.emails.send({
-      from: "GARD 018 <info@gard018.com>",
-      to: "ognjen.boks19@gmail.com",
-      replyTo: "info@gard018.com",
-      subject: `Upozorenje - Članarina ističe za 3 dana - ${member.first_name} ${member.last_name}`,
-      html: getFounderWarningEmailHTML(member, expiryDate),
-    })
-
-    if (founderEmailResult.error) {
-      console.error("[GARD018] Failed to send warning email to founder:", founderEmailResult.error)
-    }
-
-    console.log("[GARD018] Warning emails sent successfully")
+    console.log("[GARD018] Warning email sent successfully to member only")
     return true
   } catch (error) {
-    console.error("[GARD018] Unexpected error in sendWarningEmails:", error)
+    console.error("[GARD018] Unexpected error in sendWarningEmailToMemberOnly:", error)
     return false
   }
 }
@@ -175,7 +161,6 @@ async function sendExpiryEmails(member: any): Promise<boolean> {
   try {
     const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
 
-    // Send to member
     const memberEmailResult = await resend.emails.send({
       from: "GARD 018 <info@gard018.com>",
       to: member.email,
@@ -189,7 +174,6 @@ async function sendExpiryEmails(member: any): Promise<boolean> {
       return false
     }
 
-    // Send notification to founder
     const founderEmailResult = await resend.emails.send({
       from: "GARD 018 <info@gard018.com>",
       to: "ognjen.boks19@gmail.com",
@@ -284,65 +268,6 @@ function getWarningEmailHTML(member: any, expiryDate: string): string {
                       Ova poruka je poslata automatski jer vaša članarina ističe za 3 dana.<br>
                       Ako imate pitanja, kontaktirajte nas na info@gard018.com
                     </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </body>
-    </html>
-  `
-}
-
-function getFounderWarningEmailHTML(member: any, expiryDate: string): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4; }
-          table { border-collapse: collapse; }
-          .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
-          .header { background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); padding: 30px; text-align: center; }
-          .header h1 { color: #ffffff; margin: 0; font-size: 28px; font-weight: bold; }
-          .content { padding: 30px; color: #333333; line-height: 1.6; }
-          .content h2 { color: #ffc107; margin-top: 0; }
-          .member-info { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0; }
-          .member-info p { margin: 8px 0; }
-          .footer { background-color: #1a1a1a; color: #999999; padding: 20px; text-align: center; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td align="center" style="padding: 20px 0;">
-              <table class="container" width="600" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td class="header">
-                    <h1>⚠️ Upozorenje - Članarina ističe</h1>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="content">
-                    <h2>Članarina ističe za 3 dana</h2>
-                    <p>Korisniku će za 3 dana isteći članarina. Automatski je poslat email podsetnik.</p>
-                    
-                    <div class="member-info">
-                      <p><strong>Ime:</strong> ${member.first_name} ${member.last_name}</p>
-                      <p><strong>Email:</strong> ${member.email}</p>
-                      <p><strong>Datum isteka:</strong> ${expiryDate}</p>
-                      <p><strong>Tip upozorenja:</strong> 3 dana pre isteka</p>
-                    </div>
-
-                    <p>Preporučujemo da kontaktirate člana kako biste podsetili na obnovu članarine.</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="footer">
-                    <p>GARD 018 - Automatska notifikacija</p>
                   </td>
                 </tr>
               </table>
