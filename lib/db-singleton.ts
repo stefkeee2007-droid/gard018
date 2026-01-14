@@ -1,6 +1,6 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless"
 
-const globalForDb = global as unknown as {
+const globalForDb = globalThis as unknown as {
   sql: NeonQueryFunction<false, false> | undefined
 }
 
