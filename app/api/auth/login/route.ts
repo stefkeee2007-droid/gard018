@@ -1,10 +1,8 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db-singleton" // Use singleton DB connection
 import bcrypt from "bcryptjs"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 const loginLimiter = rateLimit({
   limit: 5,

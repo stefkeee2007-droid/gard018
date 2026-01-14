@@ -1,9 +1,7 @@
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db-singleton" // Use singleton DB connection
 import { NextResponse } from "next/server"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
 import { checkAdminAuth } from "@/lib/auth-helpers"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 const messageLimiter = rateLimit({
   limit: 5,

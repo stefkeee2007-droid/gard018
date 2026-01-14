@@ -1,7 +1,5 @@
 import { cookies } from "next/headers"
-import { neon } from "@neondatabase/serverless"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { sql } from "@/lib/db-singleton" // Use singleton DB connection
 
 export async function checkAdminAuth(): Promise<{
   isAuthenticated: boolean

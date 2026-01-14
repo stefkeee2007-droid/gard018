@@ -1,31 +1,56 @@
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db-singleton" // Use singleton DB connection
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
-const sql = neon(process.env.DATABASE_URL!)
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
-export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return new Response("Unauthorized", { status: 401 })
-  }
+async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await resend.emails.send(emailData)
+      if (!result.error) {
+        return { success: true, data: result }
+      }
 
+      // If it's a rate limit error and we have retries left, wait and retry
+      if (result.error && attempt < maxRetries) {
+        const waitTime = Math.pow(2, attempt) * 1000 // Exponential backoff: 2s, 4s, 8s
+        console.log(`[GARD018] Email send failed (attempt ${attempt}/${maxRetries}), retrying in ${waitTime}ms...`)
+        await new Promise((resolve) => setTimeout(resolve, waitTime))
+        continue
+      }
+
+      return { success: false, error: result.error }
+    } catch (error) {
+      if (attempt === maxRetries) {
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+      }
+      const waitTime = Math.pow(2, attempt) * 1000
+      console.log(`[GARD018] Email send exception (attempt ${attempt}/${maxRetries}), retrying in ${waitTime}ms...`)
+      await new Promise((resolve) => setTimeout(resolve, waitTime))
+    }
+  }
+  return { success: false, error: "Max retries exceeded" }
+}
+
+export async function GET(request: Request) {
   try {
+    const authHeader = request.headers.get("authorization")
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      console.error("[GARD018] Unauthorized cron attempt")
+      return new Response("Unauthorized", { status: 401 })
+    }
+
     console.log("[GARD018] Starting membership check...")
 
     const today = new Date()
-    const cetOffset = 60 // CET is UTC+1 (60 minutes)
+    const cetOffset = 60
     const cetNow = new Date(today.getTime() + cetOffset * 60 * 1000)
 
-    // Start of today (00:00:00)
     const startOfToday = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate(), 0, 0, 0)
-    // End of today (23:59:59)
     const endOfToday = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate(), 23, 59, 59)
 
-    // Start of target day (3 days from now at 00:00:00)
     const targetDay = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate() + 3, 0, 0, 0)
-    // End of target day (3 days from now at 23:59:59)
     const endOfTargetDay = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate() + 3, 23, 59, 59)
 
     console.log("[GARD018] Today range:", startOfToday.toISOString(), "to", endOfToday.toISOString())
@@ -60,49 +85,74 @@ export async function GET(request: Request) {
       }
     })
 
-    let warningNotifications: any[] = []
-    let warningFailed: any[] = []
+    const warningNotifications: any[] = []
+    const warningFailed: any[] = []
 
     if (warningEmailsData.length > 0) {
-      try {
-        // Send up to 100 emails in one batch request
-        const batchResult = await resend.batch.send(warningEmailsData)
+      const batchSize = 100 // Resend allows up to 100 emails per batch
+      const batches = []
 
-        if (batchResult.error) {
-          console.error("[GARD018] Batch send warning emails failed:", batchResult.error)
-          warningFailed = warningMembers.map((m: any) => ({
-            member: `${m.first_name} ${m.last_name}`,
-            email: m.email,
-            reason: batchResult.error?.message || "Batch send failed",
-          }))
-        } else {
-          console.log(`[GARD018] Successfully sent ${warningEmailsData.length} warning emails via Batch API`)
-          warningNotifications = warningMembers.map((m: any) => ({
-            member: `${m.first_name} ${m.last_name}`,
-            email: m.email,
-            expiryDate: m.expiry_date,
-            type: "warning",
-          }))
+      for (let i = 0; i < warningEmailsData.length; i += batchSize) {
+        batches.push(warningEmailsData.slice(i, i + batchSize))
+      }
+
+      for (let i = 0; i < batches.length; i++) {
+        try {
+          console.log(`[GARD018] Sending warning batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
+
+          const batchResult = await sendEmailWithRetry({
+            type: "batch",
+            emails: batches[i],
+          })
+
+          if (batchResult.success) {
+            console.log(`[GARD018] Successfully sent warning batch ${i + 1}/${batches.length}`)
+            const batchStartIdx = i * batchSize
+            for (let j = 0; j < batches[i].length; j++) {
+              const member = warningMembers[batchStartIdx + j]
+              warningNotifications.push({
+                member: `${member.first_name} ${member.last_name}`,
+                email: member.email,
+                expiryDate: member.expiry_date,
+                type: "warning",
+              })
+            }
+          } else {
+            console.error(`[GARD018] Batch ${i + 1} failed:`, batchResult.error)
+            const batchStartIdx = i * batchSize
+            for (let j = 0; j < batches[i].length; j++) {
+              const member = warningMembers[batchStartIdx + j]
+              warningFailed.push({
+                member: `${member.first_name} ${member.last_name}`,
+                email: member.email,
+                reason: batchResult.error || "Batch send failed",
+              })
+            }
+          }
+
+          if (i < batches.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+          }
+        } catch (error) {
+          console.error(`[GARD018] Error sending warning batch ${i + 1}:`, error)
+          const batchStartIdx = i * batchSize
+          for (let j = 0; j < batches[i].length; j++) {
+            const member = warningMembers[batchStartIdx + j]
+            warningFailed.push({
+              member: `${member.first_name} ${member.last_name}`,
+              email: member.email,
+              reason: error instanceof Error ? error.message : "Unknown error",
+            })
+          }
         }
-      } catch (error) {
-        console.error("[GARD018] Error sending batch warning emails:", error)
-        warningFailed = warningMembers.map((m: any) => ({
-          member: `${m.first_name} ${m.last_name}`,
-          email: m.email,
-          reason: error instanceof Error ? error.message : "Unknown error",
-        }))
       }
     }
 
     const expiryEmailsData: any[] = []
-    const memberIdMap: Map<string, any> = new Map()
 
     for (const member of expiringMembers) {
       const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
-      const emailId = `member-${member.id}`
-      memberIdMap.set(emailId, member)
 
-      // Email to member
       expiryEmailsData.push({
         from: "GARD 018 <info@gard018.com>",
         to: member.email,
@@ -111,7 +161,6 @@ export async function GET(request: Request) {
         html: getMemberEmailHTML(member, expiryDate),
       })
 
-      // Email to founder
       expiryEmailsData.push({
         from: "GARD 018 <info@gard018.com>",
         to: "ognjen.boks19@gmail.com",
@@ -122,50 +171,76 @@ export async function GET(request: Request) {
     }
 
     const expiryNotifications: any[] = []
-    let expiryFailed: any[] = []
+    const expiryFailed: any[] = []
 
     if (expiryEmailsData.length > 0) {
-      try {
-        // Send up to 100 emails in one batch request (50 members = 100 emails)
-        const batchResult = await resend.batch.send(expiryEmailsData)
+      const batchSize = 100
+      const batches = []
 
-        if (batchResult.error) {
-          console.error("[GARD018] Batch send expiry emails failed:", batchResult.error)
-          expiryFailed = expiringMembers.map((m: any) => ({
-            member: `${m.first_name} ${m.last_name}`,
-            email: m.email,
-            reason: batchResult.error?.message || "Batch send failed",
-          }))
-        } else {
-          console.log(`[GARD018] Successfully sent ${expiryEmailsData.length} expiry emails via Batch API`)
+      for (let i = 0; i < expiryEmailsData.length; i += batchSize) {
+        batches.push(expiryEmailsData.slice(i, i + batchSize))
+      }
 
-          // Update status for all expiring members
-          for (const member of expiringMembers) {
-            try {
-              await sql`
-                UPDATE members
-                SET status = 'expired', updated_at = CURRENT_TIMESTAMP
-                WHERE id = ${member.id}
-              `
+      for (let i = 0; i < batches.length; i++) {
+        try {
+          console.log(`[GARD018] Sending expiry batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
 
-              expiryNotifications.push({
+          const batchResult = await resend.batch.send(batches[i])
+
+          if (!batchResult.error) {
+            console.log(`[GARD018] Successfully sent expiry batch ${i + 1}/${batches.length}`)
+
+            for (const member of expiringMembers) {
+              try {
+                await sql`
+                  UPDATE members
+                  SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ${member.id}
+                `
+
+                expiryNotifications.push({
+                  member: `${member.first_name} ${member.last_name}`,
+                  email: member.email,
+                  expiryDate: member.expiry_date,
+                  type: "expiry",
+                })
+              } catch (updateError) {
+                console.error(`[GARD018] Failed to update status for member ${member.id}:`, updateError)
+                // Don't fail the entire operation if one update fails
+              }
+            }
+          } else {
+            console.error(`[GARD018] Expiry batch ${i + 1} failed:`, batchResult.error)
+            const membersPerBatch = Math.ceil(batches[i].length / 2) // Each member has 2 emails
+            for (let j = 0; j < membersPerBatch; j++) {
+              const member = expiringMembers[j]
+              if (member) {
+                expiryFailed.push({
+                  member: `${member.first_name} ${member.last_name}`,
+                  email: member.email,
+                  reason: batchResult.error?.message || "Batch send failed",
+                })
+              }
+            }
+          }
+
+          if (i < batches.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+          }
+        } catch (error) {
+          console.error(`[GARD018] Error sending expiry batch ${i + 1}:`, error)
+          const membersPerBatch = Math.ceil(batches[i].length / 2)
+          for (let j = 0; j < membersPerBatch; j++) {
+            const member = expiringMembers[j]
+            if (member) {
+              expiryFailed.push({
                 member: `${member.first_name} ${member.last_name}`,
                 email: member.email,
-                expiryDate: member.expiry_date,
-                type: "expiry",
+                reason: error instanceof Error ? error.message : "Unknown error",
               })
-            } catch (updateError) {
-              console.error(`[GARD018] Failed to update status for member ${member.id}:`, updateError)
             }
           }
         }
-      } catch (error) {
-        console.error("[GARD018] Error sending batch expiry emails:", error)
-        expiryFailed = expiringMembers.map((m: any) => ({
-          member: `${m.first_name} ${m.last_name}`,
-          email: m.email,
-          reason: error instanceof Error ? error.message : "Unknown error",
-        }))
       }
     }
 
@@ -176,9 +251,11 @@ export async function GET(request: Request) {
       message: `Checked memberships. Found ${warningMembers.length} expiring in 3 days, ${expiringMembers.length} expiring today.`,
       warningSent: warningNotifications.length,
       expirySent: expiryNotifications.length,
+      totalProcessed: warningMembers.length + expiringMembers.length,
       warningNotifications,
       expiryNotifications,
       failed: allFailed.length > 0 ? allFailed : undefined,
+      timestamp: new Date().toISOString(),
     })
   } catch (error) {
     console.error("[GARD018] Critical error checking memberships:", error)
@@ -187,6 +264,8 @@ export async function GET(request: Request) {
         success: false,
         error: "Failed to check memberships",
         details: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error && process.env.NODE_ENV !== "production" ? error.stack : undefined,
+        timestamp: new Date().toISOString(),
       },
       { status: 500 },
     )

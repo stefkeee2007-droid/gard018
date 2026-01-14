@@ -1,15 +1,8 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db-singleton" // Use singleton DB connection
 import bcrypt from "bcryptjs"
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit"
-
-const sql = neon(process.env.DATABASE_URL!)
-
-const registerLimiter = rateLimit({
-  limit: 3,
-  windowMs: 60 * 60 * 1000, // 1 hour
-})
 
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -26,7 +19,7 @@ function sanitizeInput(input: string): string {
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown"
-    const rateLimitResult = await registerLimiter(ip)
+    const rateLimitResult = await rateLimit(ip)
 
     if (!rateLimitResult.success) {
       console.log("[v0] Registration rate limit exceeded for IP:", ip)
