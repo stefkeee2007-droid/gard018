@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db-singleton"
 import { Resend } from "resend"
+import { utcToZonedTime, format as formatTZ } from "date-fns-tz"
+import { format, addDays } from "date-fns"
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
@@ -34,18 +36,17 @@ async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> 
 export async function processMembershipExpirations() {
   console.log("[GARD018] ====== Starting membership expiration processing ======")
 
-  const serverTimeUTC = new Date()
-  const serverTimeCET = new Date(serverTimeUTC.toLocaleString("en-US", { timeZone: "Europe/Belgrade" }))
+  const timeZone = "Europe/Belgrade"
+  const nowUTC = new Date()
+  const nowInBelgrade = utcToZonedTime(nowUTC, timeZone)
 
-  console.log("[GARD018] Server time (UTC):", serverTimeUTC.toISOString())
-  console.log("[GARD018] Server time (CET):", serverTimeCET.toISOString())
-  console.log("[GARD018] CET formatted:", serverTimeCET.toLocaleDateString("sr-RS"))
+  console.log("[GARD018] Server time (UTC):", nowUTC.toISOString())
+  console.log("[GARD018] Belgrade time:", formatTZ(nowInBelgrade, "yyyy-MM-dd HH:mm:ss zzz", { timeZone }))
+  console.log("[GARD018] Belgrade date:", format(nowInBelgrade, "yyyy-MM-dd"))
 
-  const todayCET = new Date(serverTimeCET.getFullYear(), serverTimeCET.getMonth(), serverTimeCET.getDate())
-  const todayStr = `${todayCET.getFullYear()}-${String(todayCET.getMonth() + 1).padStart(2, "0")}-${String(todayCET.getDate()).padStart(2, "0")}`
+  const todayInBelgrade = format(nowInBelgrade, "yyyy-MM-dd")
 
-  console.log("[GARD018] Today's date (CET):", todayStr)
-  console.log("[GARD018] Looking for memberships expiring on:", todayStr)
+  console.log("[GARD018] Looking for memberships expiring on:", todayInBelgrade)
 
   const sampleMembers = await sql`
     SELECT id, first_name, last_name, email, expiry_date, status
@@ -59,9 +60,8 @@ export async function processMembershipExpirations() {
     console.log(`  - ${m.first_name} ${m.last_name}: expiry_date=${m.expiry_date}, status=${m.status}`)
   })
 
-  const threeDaysFromNow = new Date(todayCET)
-  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3)
-  const threeDaysStr = `${threeDaysFromNow.getFullYear()}-${String(threeDaysFromNow.getMonth() + 1).padStart(2, "0")}-${String(threeDaysFromNow.getDate()).padStart(2, "0")}`
+  const threeDaysFromNow = addDays(nowInBelgrade, 3)
+  const threeDaysStr = format(threeDaysFromNow, "yyyy-MM-dd")
 
   console.log("[GARD018] Looking for warnings 3 days from now:", threeDaysStr)
 
@@ -82,7 +82,7 @@ export async function processMembershipExpirations() {
   const expiringMembers = await sql`
     SELECT id, first_name, last_name, email, expiry_date, status
     FROM members
-    WHERE expiry_date::date = ${todayStr}::date
+    WHERE expiry_date::date = ${todayInBelgrade}::date
     AND status = 'active'
   `
 

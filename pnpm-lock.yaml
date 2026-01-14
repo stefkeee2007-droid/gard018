@@ -100,7 +100,7 @@ importers:
         version: 1.1.6(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@react-email/render':
         specifier: latest
-        version: 2.0.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 2.0.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@vercel/analytics':
         specifier: 1.3.1
         version: 1.3.1(next@16.0.10(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
@@ -125,6 +125,9 @@ importers:
       date-fns:
         specifier: 4.1.0
         version: 4.1.0
+      date-fns-tz:
+        specifier: ^3.2.0
+        version: 3.2.0(date-fns@4.1.0)
       embla-carousel-react:
         specifier: 8.5.1
         version: 8.5.1(react@19.2.0)
@@ -169,7 +172,7 @@ importers:
         version: 2.15.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       resend:
         specifier: 6.6.0
-        version: 6.6.0(@react-email/render@2.0.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
+        version: 6.6.0(@react-email/render@2.0.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
       sharp:
         specifier: 0.34.5
         version: 0.34.5
@@ -1143,8 +1146,8 @@ packages:
   '@radix-ui/rect@1.1.0':
     resolution: {integrity: sha512-A9+lCBZoaMJlVKcRBz2YByCG+Cp2t6nAnMnNba+XiWxnj6r4JUFqfsgwocMBZU9LPtdxC6wB56ySYpc7LQIoJg==}
 
-  '@react-email/render@2.0.1':
-    resolution: {integrity: sha512-eYNL4+SSrV1+58MIcT4znarX4YTMuYBr1uzhI6U8fBFvRMZPryxNOnD7jnZ/Ser3MtJEquQNbXjrAP+RVkfLbg==}
+  '@react-email/render@2.0.2':
+    resolution: {integrity: sha512-AGuNo86TP9Y2JBUwFcT+z0frPDML4WLIFlnCi7laCPYJA+43kdim0y+qRNPxRxZkJiUz1JMPnE2M5HaNYhWwIg==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -1456,6 +1459,11 @@ packages:
 
   date-fns-jalali@4.1.0-0:
     resolution: {integrity: sha512-hTIP/z+t+qKwBDcmmsnmjWTduxCg+5KfdqWQvb2X/8C9+knYY6epN/pfxdDuyVlSVeFz0sM5eEfwIUQ70U4ckg==}
+
+  date-fns-tz@3.2.0:
+    resolution: {integrity: sha512-sg8HqoTEulcbbbVXeg84u5UnlsQa8GS5QXMqjjYIhS4abEVVKIUwe0/l/UhrZdKaL/W5eWZNlbTeEIiOXTcsBQ==}
+    peerDependencies:
+      date-fns: ^3.0.0 || ^4.0.0
 
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
@@ -3114,7 +3122,7 @@ snapshots:
 
   '@radix-ui/rect@1.1.0': {}
 
-  '@react-email/render@2.0.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@react-email/render@2.0.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.7.4
@@ -3405,6 +3413,10 @@ snapshots:
       assert-plus: 1.0.0
 
   date-fns-jalali@4.1.0-0: {}
+
+  date-fns-tz@3.2.0(date-fns@4.1.0):
+    dependencies:
+      date-fns: 4.1.0
 
   date-fns@4.1.0: {}
 
@@ -3922,11 +3934,11 @@ snapshots:
 
   requires-port@1.0.0: {}
 
-  resend@6.6.0(@react-email/render@2.0.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0)):
+  resend@6.6.0(@react-email/render@2.0.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)):
     dependencies:
       svix: 1.76.1
     optionalDependencies:
-      '@react-email/render': 2.0.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@react-email/render': 2.0.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
 
   retry@0.13.1: {}
 
