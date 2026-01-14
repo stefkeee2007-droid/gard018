@@ -1,6 +1,6 @@
 import { sql } from "@/lib/db-singleton"
 import { Resend } from "resend"
-import { utcToZonedTime, format as formatTZ } from "date-fns-tz"
+import { toZonedTime, format as formatTZ } from "date-fns-tz"
 import { format, addDays } from "date-fns"
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
@@ -38,7 +38,7 @@ export async function processMembershipExpirations() {
 
   const timeZone = "Europe/Belgrade"
   const nowUTC = new Date()
-  const nowInBelgrade = utcToZonedTime(nowUTC, timeZone)
+  const nowInBelgrade = toZonedTime(nowUTC, timeZone)
 
   console.log("[GARD018] Server time (UTC):", nowUTC.toISOString())
   console.log("[GARD018] Belgrade time:", formatTZ(nowInBelgrade, "yyyy-MM-dd HH:mm:ss zzz", { timeZone }))
