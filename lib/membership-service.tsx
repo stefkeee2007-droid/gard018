@@ -1,7 +1,7 @@
 import { sql } from "@/lib/db-singleton"
 import { Resend } from "resend"
-import { toZonedTime, format as formatTZ } from "date-fns-tz"
-import { format, addDays } from "date-fns"
+import { toZonedTime, fromZonedTime, format as formatTZ } from "date-fns-tz"
+import { startOfDay, endOfDay, addDays } from "date-fns"
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
@@ -37,16 +37,35 @@ export async function processMembershipExpirations() {
   console.log("[GARD018] ====== Starting membership expiration processing ======")
 
   const timeZone = "Europe/Belgrade"
+
   const nowUTC = new Date()
   const nowInBelgrade = toZonedTime(nowUTC, timeZone)
 
   console.log("[GARD018] Server time (UTC):", nowUTC.toISOString())
-  console.log("[GARD018] Belgrade time:", formatTZ(nowInBelgrade, "yyyy-MM-dd HH:mm:ss zzz", { timeZone }))
-  console.log("[GARD018] Belgrade date:", format(nowInBelgrade, "yyyy-MM-dd"))
+  console.log("[GARD018] U Beogradu je trenutno:", formatTZ(nowInBelgrade, "dd.MM.yyyy HH:mm:ss zzz", { timeZone }))
 
-  const todayInBelgrade = format(nowInBelgrade, "yyyy-MM-dd")
+  const startOfTodayBelgrade = startOfDay(nowInBelgrade) // 00:00:00 in Belgrade
+  const endOfTodayBelgrade = endOfDay(nowInBelgrade) // 23:59:59 in Belgrade
 
-  console.log("[GARD018] Looking for memberships expiring on:", todayInBelgrade)
+  // Convert back to UTC for database queries
+  const startOfTodayUTC = fromZonedTime(startOfTodayBelgrade, timeZone)
+  const endOfTodayUTC = fromZonedTime(endOfTodayBelgrade, timeZone)
+
+  console.log("[GARD018] Tražim članove u opsegu:")
+  console.log("  Start (Belgrade):", formatTZ(startOfTodayBelgrade, "dd.MM.yyyy HH:mm:ss", { timeZone }))
+  console.log("  End (Belgrade):", formatTZ(endOfTodayBelgrade, "dd.MM.yyyy HH:mm:ss", { timeZone }))
+  console.log("  Start (UTC for DB):", startOfTodayUTC.toISOString())
+  console.log("  End (UTC for DB):", endOfTodayUTC.toISOString())
+
+  const threeDaysFromNowBelgrade = addDays(nowInBelgrade, 3)
+  const startOf3DaysBelgrade = startOfDay(threeDaysFromNowBelgrade)
+  const endOf3DaysBelgrade = endOfDay(threeDaysFromNowBelgrade)
+
+  const startOf3DaysUTC = fromZonedTime(startOf3DaysBelgrade, timeZone)
+  const endOf3DaysUTC = fromZonedTime(endOf3DaysBelgrade, timeZone)
+
+  console.log("[GARD018] Tražim upozorenja za 3 dana unapred:")
+  console.log("  Date (Belgrade):", formatTZ(startOf3DaysBelgrade, "dd.MM.yyyy", { timeZone }))
 
   const sampleMembers = await sql`
     SELECT id, first_name, last_name, email, expiry_date, status
@@ -60,15 +79,11 @@ export async function processMembershipExpirations() {
     console.log(`  - ${m.first_name} ${m.last_name}: expiry_date=${m.expiry_date}, status=${m.status}`)
   })
 
-  const threeDaysFromNow = addDays(nowInBelgrade, 3)
-  const threeDaysStr = format(threeDaysFromNow, "yyyy-MM-dd")
-
-  console.log("[GARD018] Looking for warnings 3 days from now:", threeDaysStr)
-
   const warningMembers = await sql`
     SELECT id, first_name, last_name, email, expiry_date, status
     FROM members
-    WHERE expiry_date::date = ${threeDaysStr}::date
+    WHERE expiry_date >= ${startOf3DaysUTC.toISOString()}
+    AND expiry_date <= ${endOf3DaysUTC.toISOString()}
     AND status = 'active'
   `
 
@@ -82,7 +97,8 @@ export async function processMembershipExpirations() {
   const expiringMembers = await sql`
     SELECT id, first_name, last_name, email, expiry_date, status
     FROM members
-    WHERE expiry_date::date = ${todayInBelgrade}::date
+    WHERE expiry_date >= ${startOfTodayUTC.toISOString()}
+    AND expiry_date <= ${endOfTodayUTC.toISOString()}
     AND status = 'active'
   `
 
@@ -97,11 +113,15 @@ export async function processMembershipExpirations() {
       SELECT id, first_name, last_name, expiry_date, status
       FROM members
       WHERE status = 'active'
+      ORDER BY expiry_date ASC
       LIMIT 10
     `
     console.log(`[GARD018] Total active members (sample): ${allActiveMembers.length}`)
     allActiveMembers.forEach((m: any) => {
-      console.log(`  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date}`)
+      const expiryInBelgrade = toZonedTime(new Date(m.expiry_date), timeZone)
+      console.log(
+        `  - ${m.first_name} ${m.last_name}: expiry=${formatTZ(expiryInBelgrade, "dd.MM.yyyy HH:mm", { timeZone })}`,
+      )
     })
   }
 
