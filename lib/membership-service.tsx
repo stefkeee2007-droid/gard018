@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server"
+import { sql } from "@/lib/db-singleton"
 import { Resend } from "resend"
-import { processMembershipExpirations } from "@/lib/membership-service"
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
@@ -12,9 +11,8 @@ async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> 
         return { success: true, data: result }
       }
 
-      // If it's a rate limit error and we have retries left, wait and retry
       if (result.error && attempt < maxRetries) {
-        const waitTime = Math.pow(2, attempt) * 1000 // Exponential backoff: 2s, 4s, 8s
+        const waitTime = Math.pow(2, attempt) * 1000
         console.log(`[GARD018] Email send failed (attempt ${attempt}/${maxRetries}), retrying in ${waitTime}ms...`)
         await new Promise((resolve) => setTimeout(resolve, waitTime))
         continue
@@ -33,36 +31,185 @@ async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> 
   return { success: false, error: "Max retries exceeded" }
 }
 
-export async function GET(request: Request) {
-  try {
-    const authHeader = request.headers.get("authorization")
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      console.error("[GARD018] Unauthorized attempt to check memberships")
-      return new Response("Unauthorized", { status: 401 })
+export async function processMembershipExpirations() {
+  console.log("[GARD018] Starting membership expiration processing...")
+
+  const today = new Date()
+  const cetOffset = 60 // CET is UTC+1
+  const cetNow = new Date(today.getTime() + cetOffset * 60 * 1000)
+
+  const startOfToday = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate(), 0, 0, 0)
+  const endOfToday = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate(), 23, 59, 59)
+
+  console.log("[GARD018] Today range:", startOfToday.toISOString(), "to", endOfToday.toISOString())
+
+  const warningMembers = await sql`
+    SELECT id, first_name, last_name, email, expiry_date
+    FROM members
+    WHERE expiry_date::date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date + INTERVAL '3 days'
+    AND status = 'active'
+  `
+
+  console.log("[GARD018] Found members expiring in 3 days:", warningMembers.length)
+
+  const expiringMembers = await sql`
+    SELECT id, first_name, last_name, email, expiry_date
+    FROM members
+    WHERE expiry_date::date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date
+    AND status = 'active'
+  `
+
+  console.log("[GARD018] Found members expiring today:", expiringMembers.length)
+
+  const warningEmailsData = warningMembers.map((member: any) => {
+    const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
+    return {
+      from: "GARD 018 <info@gard018.com>",
+      to: member.email,
+      replyTo: "info@gard018.com",
+      subject: "Obaveštenje - Članarina ističe za 3 dana - GARD 018",
+      html: getWarningEmailHTML(member, expiryDate),
+    }
+  })
+
+  const warningNotifications: any[] = []
+  const warningFailed: any[] = []
+
+  if (warningEmailsData.length > 0) {
+    const batchSize = 100
+    const batches = []
+
+    for (let i = 0; i < warningEmailsData.length; i += batchSize) {
+      batches.push(warningEmailsData.slice(i, i + batchSize))
     }
 
-    console.log("[GARD018] ====== CHECK MEMBERSHIPS API CALLED ======")
+    for (let i = 0; i < batches.length; i++) {
+      try {
+        console.log(`[GARD018] Sending warning batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
 
-    const result = await processMembershipExpirations()
+        const batchResult = await resend.batch.send(batches[i])
 
-    return NextResponse.json(result)
-  } catch (error) {
-    console.error("[GARD018] Critical error checking memberships:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to check memberships",
-        details: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error && process.env.NODE_ENV !== "production" ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 },
-    )
+        if (!batchResult.error) {
+          console.log(`[GARD018] Successfully sent warning batch ${i + 1}/${batches.length}`)
+          const batchStartIdx = i * batchSize
+          for (let j = 0; j < batches[i].length; j++) {
+            const member = warningMembers[batchStartIdx + j]
+            warningNotifications.push({
+              member: `${member.first_name} ${member.last_name}`,
+              email: member.email,
+              expiryDate: member.expiry_date,
+              type: "warning",
+            })
+          }
+        } else {
+          console.error(`[GARD018] Batch ${i + 1} failed:`, batchResult.error)
+          const batchStartIdx = i * batchSize
+          for (let j = 0; j < batches[i].length; j++) {
+            const member = warningMembers[batchStartIdx + j]
+            warningFailed.push({
+              member: `${member.first_name} ${member.last_name}`,
+              email: member.email,
+              reason: batchResult.error?.message || "Batch send failed",
+            })
+          }
+        }
+
+        if (i < batches.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+        }
+      } catch (error) {
+        console.error(`[GARD018] Error sending warning batch ${i + 1}:`, error)
+      }
+    }
+  }
+
+  const expiryEmailsData: any[] = []
+
+  for (const member of expiringMembers) {
+    const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
+
+    expiryEmailsData.push({
+      from: "GARD 018 <info@gard018.com>",
+      to: member.email,
+      replyTo: "info@gard018.com",
+      subject: "Obaveštenje - Istekla članarina - GARD 018",
+      html: getMemberEmailHTML(member, expiryDate),
+    })
+
+    expiryEmailsData.push({
+      from: "GARD 018 <info@gard018.com>",
+      to: "ognjen.boks19@gmail.com",
+      replyTo: "info@gard018.com",
+      subject: `Članarina istekla - ${member.first_name} ${member.last_name}`,
+      html: getFounderEmailHTML(member, expiryDate),
+    })
+  }
+
+  const expiryNotifications: any[] = []
+  const expiryFailed: any[] = []
+
+  if (expiryEmailsData.length > 0) {
+    const batchSize = 100
+    const batches = []
+
+    for (let i = 0; i < expiryEmailsData.length; i += batchSize) {
+      batches.push(expiryEmailsData.slice(i, i + batchSize))
+    }
+
+    for (let i = 0; i < batches.length; i++) {
+      try {
+        console.log(`[GARD018] Sending expiry batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
+
+        const batchResult = await resend.batch.send(batches[i])
+
+        if (!batchResult.error) {
+          console.log(`[GARD018] Successfully sent expiry batch ${i + 1}/${batches.length}`)
+
+          for (const member of expiringMembers) {
+            try {
+              await sql`
+                UPDATE members
+                SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+                WHERE id = ${member.id}
+              `
+
+              expiryNotifications.push({
+                member: `${member.first_name} ${member.last_name}`,
+                email: member.email,
+                expiryDate: member.expiry_date,
+                type: "expiry",
+              })
+            } catch (updateError) {
+              console.error(`[GARD018] Failed to update status for member ${member.id}:`, updateError)
+            }
+          }
+        } else {
+          console.error(`[GARD018] Expiry batch ${i + 1} failed:`, batchResult.error)
+        }
+
+        if (i < batches.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+        }
+      } catch (error) {
+        console.error(`[GARD018] Error sending expiry batch ${i + 1}:`, error)
+      }
+    }
+  }
+
+  const allFailed = [...warningFailed, ...expiryFailed]
+
+  return {
+    success: true,
+    message: `Checked memberships. Found ${warningMembers.length} expiring in 3 days, ${expiringMembers.length} expiring today.`,
+    warningSent: warningNotifications.length,
+    expirySent: expiryNotifications.length,
+    totalProcessed: warningMembers.length + expiringMembers.length,
+    warningNotifications,
+    expiryNotifications,
+    failed: allFailed.length > 0 ? allFailed : undefined,
+    timestamp: new Date().toISOString(),
   }
 }
-
-export const dynamic = "force-dynamic"
-export const maxDuration = 60
 
 function getWarningEmailHTML(member: any, expiryDate: string): string {
   return `
