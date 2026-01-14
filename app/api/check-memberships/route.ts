@@ -14,10 +14,27 @@ export async function GET(request: Request) {
   try {
     console.log("[GARD018] Starting membership check...")
 
+    const today = new Date()
+    const cetOffset = 60 // CET is UTC+1 (60 minutes)
+    const cetNow = new Date(today.getTime() + cetOffset * 60 * 1000)
+
+    // Start of today (00:00:00)
+    const startOfToday = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate(), 0, 0, 0)
+    // End of today (23:59:59)
+    const endOfToday = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate(), 23, 59, 59)
+
+    // Start of target day (3 days from now at 00:00:00)
+    const targetDay = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate() + 3, 0, 0, 0)
+    // End of target day (3 days from now at 23:59:59)
+    const endOfTargetDay = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate() + 3, 23, 59, 59)
+
+    console.log("[GARD018] Today range:", startOfToday.toISOString(), "to", endOfToday.toISOString())
+    console.log("[GARD018] Target day range (3 days):", targetDay.toISOString(), "to", endOfTargetDay.toISOString())
+
     const warningMembers = await sql`
       SELECT id, first_name, last_name, email, expiry_date
       FROM members
-      WHERE expiry_date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date + INTERVAL '3 days'
+      WHERE expiry_date::date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date + INTERVAL '3 days'
       AND status = 'active'
     `
 
@@ -26,7 +43,7 @@ export async function GET(request: Request) {
     const expiringMembers = await sql`
       SELECT id, first_name, last_name, email, expiry_date
       FROM members
-      WHERE expiry_date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date
+      WHERE expiry_date::date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date
       AND status = 'active'
     `
 
