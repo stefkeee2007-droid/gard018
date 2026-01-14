@@ -32,34 +32,78 @@ async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> 
 }
 
 export async function processMembershipExpirations() {
-  console.log("[GARD018] Starting membership expiration processing...")
+  console.log("[GARD018] ====== Starting membership expiration processing ======")
 
-  const today = new Date()
-  const cetOffset = 60 // CET is UTC+1
-  const cetNow = new Date(today.getTime() + cetOffset * 60 * 1000)
+  const serverTimeUTC = new Date()
+  const serverTimeCET = new Date(serverTimeUTC.toLocaleString("en-US", { timeZone: "Europe/Belgrade" }))
 
-  const startOfToday = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate(), 0, 0, 0)
-  const endOfToday = new Date(cetNow.getFullYear(), cetNow.getMonth(), cetNow.getDate(), 23, 59, 59)
+  console.log("[GARD018] Server time (UTC):", serverTimeUTC.toISOString())
+  console.log("[GARD018] Server time (CET):", serverTimeCET.toISOString())
+  console.log("[GARD018] CET formatted:", serverTimeCET.toLocaleDateString("sr-RS"))
 
-  console.log("[GARD018] Today range:", startOfToday.toISOString(), "to", endOfToday.toISOString())
+  const todayCET = new Date(serverTimeCET.getFullYear(), serverTimeCET.getMonth(), serverTimeCET.getDate())
+  const todayStr = `${todayCET.getFullYear()}-${String(todayCET.getMonth() + 1).padStart(2, "0")}-${String(todayCET.getDate()).padStart(2, "0")}`
+
+  console.log("[GARD018] Today's date (CET):", todayStr)
+  console.log("[GARD018] Looking for memberships expiring on:", todayStr)
+
+  const sampleMembers = await sql`
+    SELECT id, first_name, last_name, email, expiry_date, status
+    FROM members
+    ORDER BY expiry_date DESC
+    LIMIT 5
+  `
+
+  console.log("[GARD018] Sample members from database:")
+  sampleMembers.forEach((m: any) => {
+    console.log(`  - ${m.first_name} ${m.last_name}: expiry_date=${m.expiry_date}, status=${m.status}`)
+  })
+
+  const threeDaysFromNow = new Date(todayCET)
+  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3)
+  const threeDaysStr = `${threeDaysFromNow.getFullYear()}-${String(threeDaysFromNow.getMonth() + 1).padStart(2, "0")}-${String(threeDaysFromNow.getDate()).padStart(2, "0")}`
+
+  console.log("[GARD018] Looking for warnings 3 days from now:", threeDaysStr)
 
   const warningMembers = await sql`
-    SELECT id, first_name, last_name, email, expiry_date
+    SELECT id, first_name, last_name, email, expiry_date, status
     FROM members
-    WHERE expiry_date::date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date + INTERVAL '3 days'
+    WHERE expiry_date::date = ${threeDaysStr}::date
     AND status = 'active'
   `
 
   console.log("[GARD018] Found members expiring in 3 days:", warningMembers.length)
+  if (warningMembers.length > 0) {
+    warningMembers.forEach((m: any) => {
+      console.log(`  - ${m.first_name} ${m.last_name}: ${m.expiry_date}`)
+    })
+  }
 
   const expiringMembers = await sql`
-    SELECT id, first_name, last_name, email, expiry_date
+    SELECT id, first_name, last_name, email, expiry_date, status
     FROM members
-    WHERE expiry_date::date = (CURRENT_DATE AT TIME ZONE 'Europe/Belgrade')::date
+    WHERE expiry_date::date = ${todayStr}::date
     AND status = 'active'
   `
 
-  console.log("[GARD018] Found members expiring today:", expiringMembers.length)
+  console.log("[GARD018] Found members expiring TODAY:", expiringMembers.length)
+  if (expiringMembers.length > 0) {
+    expiringMembers.forEach((m: any) => {
+      console.log(`  - ${m.first_name} ${m.last_name}: ${m.expiry_date}`)
+    })
+  } else {
+    console.log("[GARD018] No members found expiring today. Checking all active members:")
+    const allActiveMembers = await sql`
+      SELECT id, first_name, last_name, expiry_date, status
+      FROM members
+      WHERE status = 'active'
+      LIMIT 10
+    `
+    console.log(`[GARD018] Total active members (sample): ${allActiveMembers.length}`)
+    allActiveMembers.forEach((m: any) => {
+      console.log(`  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date}`)
+    })
+  }
 
   const warningEmailsData = warningMembers.map((member: any) => {
     const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
