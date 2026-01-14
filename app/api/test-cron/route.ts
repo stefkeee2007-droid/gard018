@@ -6,25 +6,24 @@ export async function GET(request: Request) {
   console.log("[GARD018 TEST] Timestamp:", new Date().toISOString())
 
   try {
-    // Import the check-memberships logic
-    const { GET: checkMemberships } = await import("../check-memberships/route")
-
-    // Create a mock authorized request
-    const mockRequest = new Request(request.url, {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://gard018.com"
+    const response = await fetch(`${baseUrl}/api/check-memberships`, {
+      method: "GET",
       headers: {
         authorization: `Bearer ${process.env.CRON_SECRET}`,
       },
     })
 
-    const response = await checkMemberships(mockRequest)
     const data = await response.json()
 
+    console.log("[GARD018 TEST] Response status:", response.status)
     console.log("[GARD018 TEST] Response:", JSON.stringify(data, null, 2))
     console.log("[GARD018 TEST] ====== TEST COMPLETED ======")
 
     return NextResponse.json({
       testTriggered: true,
       timestamp: new Date().toISOString(),
+      status: response.status,
       result: data,
     })
   } catch (error) {
