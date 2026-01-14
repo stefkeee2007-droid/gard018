@@ -1,7 +1,5 @@
 import { sql } from "@/lib/db-singleton"
 import { Resend } from "resend"
-import { toZonedTime, fromZonedTime, format as formatTZ } from "date-fns-tz"
-import { startOfDay, endOfDay, addDays } from "date-fns"
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
@@ -38,34 +36,52 @@ export async function processMembershipExpirations() {
 
   const timeZone = "Europe/Belgrade"
 
+  // Get current UTC time
   const nowUTC = new Date()
-  const nowInBelgrade = toZonedTime(nowUTC, timeZone)
+
+  // CET is UTC+1, CEST is UTC+2 (we're in winter now, so +1)
+  // To be safe during DST transitions, we manually add 1 hour
+  const UTC_OFFSET_HOURS = 1 // Winter time (CET = UTC+1)
+
+  // Create "Belgrade now" by adding offset to UTC
+  const nowInBelgrade = new Date(nowUTC.getTime() + UTC_OFFSET_HOURS * 60 * 60 * 1000)
 
   console.log("[GARD018] Server time (UTC):", nowUTC.toISOString())
-  console.log("[GARD018] U Beogradu je trenutno:", formatTZ(nowInBelgrade, "dd.MM.yyyy HH:mm:ss zzz", { timeZone }))
+  console.log("[GARD018] Belgrade time (forced UTC+1):", nowInBelgrade.toISOString())
 
-  const startOfTodayBelgrade = startOfDay(nowInBelgrade) // 00:00:00 in Belgrade
-  const endOfTodayBelgrade = endOfDay(nowInBelgrade) // 23:59:59 in Belgrade
+  // Get Belgrade date components
+  const belgradeDateStr = nowInBelgrade.toISOString().split("T")[0] // YYYY-MM-DD
+  console.log("[GARD018] U Beogradu je datum:", belgradeDateStr)
 
-  // Convert back to UTC for database queries
-  const startOfTodayUTC = fromZonedTime(startOfTodayBelgrade, timeZone)
-  const endOfTodayUTC = fromZonedTime(endOfTodayBelgrade, timeZone)
+  // Create start and end of day in Belgrade timezone
+  // Start of day: 00:00:00 Belgrade time
+  const startOfDayBelgrade = new Date(belgradeDateStr + "T00:00:00.000Z")
+  // This is actually UTC, so we need to subtract offset to get UTC time that represents Belgrade midnight
+  const startOfDayUTC = new Date(startOfDayBelgrade.getTime() - UTC_OFFSET_HOURS * 60 * 60 * 1000)
+
+  // End of day: 23:59:59 Belgrade time
+  const endOfDayBelgrade = new Date(belgradeDateStr + "T23:59:59.999Z")
+  const endOfDayUTC = new Date(endOfDayBelgrade.getTime() - UTC_OFFSET_HOURS * 60 * 60 * 1000)
 
   console.log("[GARD018] Tražim članove u opsegu:")
-  console.log("  Start (Belgrade):", formatTZ(startOfTodayBelgrade, "dd.MM.yyyy HH:mm:ss", { timeZone }))
-  console.log("  End (Belgrade):", formatTZ(endOfTodayBelgrade, "dd.MM.yyyy HH:mm:ss", { timeZone }))
-  console.log("  Start (UTC for DB):", startOfTodayUTC.toISOString())
-  console.log("  End (UTC for DB):", endOfTodayUTC.toISOString())
+  console.log("  Today in Belgrade:", belgradeDateStr)
+  console.log("  Start (UTC for DB):", startOfDayUTC.toISOString())
+  console.log("  End (UTC for DB):", endOfDayUTC.toISOString())
 
-  const threeDaysFromNowBelgrade = addDays(nowInBelgrade, 3)
-  const startOf3DaysBelgrade = startOfDay(threeDaysFromNowBelgrade)
-  const endOf3DaysBelgrade = endOfDay(threeDaysFromNowBelgrade)
+  // For 3 days warning
+  const threeDaysFromNow = new Date(nowInBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000)
+  const threeDaysDateStr = threeDaysFromNow.toISOString().split("T")[0]
 
-  const startOf3DaysUTC = fromZonedTime(startOf3DaysBelgrade, timeZone)
-  const endOf3DaysUTC = fromZonedTime(endOf3DaysBelgrade, timeZone)
+  const startOf3DaysBelgrade = new Date(threeDaysDateStr + "T00:00:00.000Z")
+  const startOf3DaysUTC = new Date(startOf3DaysBelgrade.getTime() - UTC_OFFSET_HOURS * 60 * 60 * 1000)
+
+  const endOf3DaysBelgrade = new Date(threeDaysDateStr + "T23:59:59.999Z")
+  const endOf3DaysUTC = new Date(endOf3DaysBelgrade.getTime() - UTC_OFFSET_HOURS * 60 * 60 * 1000)
 
   console.log("[GARD018] Tražim upozorenja za 3 dana unapred:")
-  console.log("  Date (Belgrade):", formatTZ(startOf3DaysBelgrade, "dd.MM.yyyy", { timeZone }))
+  console.log("  Target date (Belgrade):", threeDaysDateStr)
+  console.log("  Start (UTC for DB):", startOf3DaysUTC.toISOString())
+  console.log("  End (UTC for DB):", endOf3DaysUTC.toISOString())
 
   const sampleMembers = await sql`
     SELECT id, first_name, last_name, email, expiry_date, status
@@ -97,8 +113,8 @@ export async function processMembershipExpirations() {
   const expiringMembers = await sql`
     SELECT id, first_name, last_name, email, expiry_date, status
     FROM members
-    WHERE expiry_date >= ${startOfTodayUTC.toISOString()}
-    AND expiry_date <= ${endOfTodayUTC.toISOString()}
+    WHERE expiry_date >= ${startOfDayUTC.toISOString()}
+    AND expiry_date <= ${endOfDayUTC.toISOString()}
     AND status = 'active'
   `
 
@@ -118,10 +134,7 @@ export async function processMembershipExpirations() {
     `
     console.log(`[GARD018] Total active members (sample): ${allActiveMembers.length}`)
     allActiveMembers.forEach((m: any) => {
-      const expiryInBelgrade = toZonedTime(new Date(m.expiry_date), timeZone)
-      console.log(
-        `  - ${m.first_name} ${m.last_name}: expiry=${formatTZ(expiryInBelgrade, "dd.MM.yyyy HH:mm", { timeZone })}`,
-      )
+      console.log(`  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date}`)
     })
   }
 
