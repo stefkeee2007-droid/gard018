@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db-singleton"
+import { processMembershipExpirations } from "@/lib/membership-service"
 
 export async function GET(request: Request) {
   console.log("[GARD018 TEST] ====== MANUAL CRON TEST TRIGGERED ======")
@@ -59,10 +60,12 @@ export async function GET(request: Request) {
       console.log(`  ⚠ ${m.first_name} ${m.last_name}: ${m.email}`)
     })
 
-    console.log("[GARD018 TEST] ====== TEST COMPLETED SUCCESSFULLY ======")
+    const result = await processMembershipExpirations()
+
+    console.log("[GARD018 TEST] ====== TEST COMPLETED ======")
+    console.log("[GARD018 TEST] Result:", JSON.stringify(result, null, 2))
 
     return NextResponse.json({
-      success: true,
       testTriggered: true,
       timestamp: nowUTC.toISOString(),
       belgradetime: nowBelgrade.toISOString(),
@@ -81,6 +84,7 @@ export async function GET(request: Request) {
         email: m.email,
         expiryDate: m.expiry_date,
       })),
+      result,
     })
   } catch (error) {
     console.error("[GARD018 TEST] ====== TEST FAILED ======")
