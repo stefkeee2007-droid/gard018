@@ -33,50 +33,57 @@ async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> 
 
 export async function processMembershipExpirations() {
   const cacheDetector = Math.random()
-  console.log("[GARD018] ====== Starting membership expiration processing ======")
-  console.log("[GARD018] Cache Detector (if same number = cached):", cacheDetector)
-  console.log("[GARD018] Process started at:", new Date().toISOString())
-  console.log("[GARD018] RESEND_API_KEY available:", !!process.env.RESEND_API_KEY)
+  console.log(`[GARD018] processMembershipExpirations() called - Cache detector: ${cacheDetector}`)
 
   try {
     const nowUTC = new Date()
-    const UTC_OFFSET_HOURS = 1 // CET = UTC+1
-    const nowInBelgrade = new Date(nowUTC.getTime() + UTC_OFFSET_HOURS * 60 * 60 * 1000)
+    const UTC_OFFSET_MS = 1 * 60 * 60 * 1000
+    const nowBelgrade = new Date(nowUTC.getTime() + UTC_OFFSET_MS)
 
-    const danasString = nowInBelgrade.toISOString().split("T")[0] // "2026-01-15"
-    const sutraString = new Date(nowInBelgrade.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0] // Added tomorrow date for tolerance
-    const zaTriDanaString = new Date(nowInBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    const danasString = nowBelgrade.toISOString().split("T")[0]
+    const zaTriDanaDate = new Date(nowBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000)
+    const zaTriDanaString = zaTriDanaDate.toISOString().split("T")[0]
 
-    console.log("[GARD018] Server time (UTC):", nowUTC.toISOString())
-    console.log("[GARD018] Belgrade time (forced UTC+1):", nowInBelgrade.toISOString())
-    console.log("[GARD018] Danas u Beogradu (datum string):", danasString)
-    console.log("[GARD018] Sutra u Beogradu (datum string):", sutraString) // Log tomorrow date
-    console.log("[GARD018] Za 3 dana (datum string):", zaTriDanaString)
+    console.log("[GARD018] Current UTC time:", nowUTC.toISOString())
+    console.log("[GARD018] Belgrade time (UTC+1):", nowBelgrade.toISOString())
+    console.log("[GARD018] Today's date string (danasString):", danasString)
+    console.log("[GARD018] In 3 days date string (zaTriDanaString):", zaTriDanaString)
 
-    console.log("[GARD018] Fetching ALL active members from database...")
+    console.log("[GARD018] Fetching ALL members from database...")
     const allMembers = await sql`
-      SELECT id, first_name, last_name, email, expiry_date, start_date, status
+      SELECT id, first_name, last_name, email, expiry_date, status
       FROM members
-      WHERE status = 'active'
       ORDER BY expiry_date ASC
     `
 
-    console.log(`[GARD018] Total active members in database: ${allMembers.length}`)
+    console.log(`[GARD018] Total members fetched: ${allMembers.length}`)
 
-    const allMembersDebugInfo = allMembers.map((m: any) => {
-      const rawDate = m.expiry_date
-      const parsedDate = new Date(rawDate)
-      const dateString = parsedDate.toISOString().split("T")[0]
+    const warningMembers = allMembers.filter((m: any) => {
+      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
+      const expiryDateOnly = expiryStr.split("T")[0]
+      return expiryDateOnly === zaTriDanaString && m.status === "active"
+    })
 
+    const expiringMembers = allMembers.filter((m: any) => {
+      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
+      const expiryDateOnly = expiryStr.split("T")[0]
+      return expiryDateOnly === danasString && m.status === "active"
+    })
+
+    console.log(`[GARD018] Found ${warningMembers.length} members expiring in 3 days`)
+    console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY (cache: ${cacheDetector})`)
+
+    const debugInfo = allMembers.slice(0, 5).map((m: any) => {
+      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
+      const expiryDateOnly = expiryStr.split("T")[0]
       return {
         name: `${m.first_name} ${m.last_name}`,
-        email: m.email,
-        rawDateFromDB: rawDate,
-        parsedAsISO: parsedDate.toISOString(),
-        extractedDateString: dateString,
-        matchesDanas: dateString === danasString,
-        matchesSutra: dateString === sutraString,
-        danasStringWeAreComparing: danasString,
+        rawExpiryDate: expiryStr,
+        extractedDate: expiryDateOnly,
+        matchesToday: expiryDateOnly === danasString,
+        matchesIn3Days: expiryDateOnly === zaTriDanaString,
+        todayWeAreComparing: danasString,
+        status: m.status,
       }
     })
 
@@ -85,43 +92,6 @@ export async function processMembershipExpirations() {
       console.log(
         `  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date} -> extracted date=${memberDateString}, status=${m.status}`,
       )
-    })
-
-    console.log("[GARD018] Filtering members expiring in 3 days...")
-    const warningMembers = allMembers.filter((m: any) => {
-      const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
-      return memberDateString === zaTriDanaString
-    })
-
-    console.log(`[GARD018] Found ${warningMembers.length} members expiring in 3 days`)
-    warningMembers.forEach((m: any) => {
-      console.log(`  - ${m.first_name} ${m.last_name}: ${m.expiry_date}`)
-    })
-
-    console.log("[GARD018] Filtering members expiring TODAY (or TOMORROW for 23:00 edge case)...")
-    const expiringMembers = allMembers.filter((m: any) => {
-      const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
-      return memberDateString === danasString || memberDateString === sutraString
-    })
-
-    console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY (random: ${cacheDetector})`)
-    expiringMembers.forEach((m: any) => {
-      const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
-      console.log(
-        `  - ${m.first_name} ${m.last_name}: ${m.expiry_date} -> ${memberDateString} (comparing to ${danasString} or ${sutraString})`,
-      )
-    })
-
-    const sampleMembers = await sql`
-      SELECT id, first_name, last_name, email, expiry_date, status
-      FROM members
-      ORDER BY expiry_date DESC
-      LIMIT 5
-    `
-
-    console.log("[GARD018] Sample members from database:")
-    sampleMembers.forEach((m: any) => {
-      console.log(`  - ${m.first_name} ${m.last_name}: expiry_date=${m.expiry_date}, status=${m.status}`)
     })
 
     const warningEmailsData = warningMembers.map((member: any) => {
@@ -278,24 +248,20 @@ export async function processMembershipExpirations() {
       warningSent: warningNotifications.length,
       expirySent: expiryNotifications.length,
       totalProcessed: warningMembers.length + expiringMembers.length,
-      totalMembers: allMembers.length, // Added totalMembers count
       warningNotifications,
       expiryNotifications,
-      failed: allFailed.length > 0 ? allFailed : undefined,
-      timestamp: new Date().toISOString(),
       cacheDetector,
-      debugInfo: allMembersDebugInfo, // Added detailed debug info for all members
-      comparisonDates: {
-        // Added comparison dates to response
-        danas: danasString,
-        sutra: sutraString,
-        zaTriDana: zaTriDanaString,
-      },
+      debugInfo,
+      timestamp: new Date().toISOString(),
     }
   } catch (error) {
-    console.error("[GARD018] CRITICAL ERROR in processMembershipExpirations:", error)
-    console.error("[GARD018] Error stack:", error instanceof Error ? error.stack : "No stack trace")
-    throw error
+    console.error("[GARD018] Error in processMembershipExpirations:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+      cacheDetector,
+      timestamp: new Date().toISOString(),
+    }
   }
 }
 
