@@ -137,8 +137,16 @@ export async function processMembershipExpirations() {
 
     // Build expiry emails (for members + founder)
     const expiryEmailsData: any[] = []
+    const processedMemberIds = new Set<number>()
 
     for (const member of expiringMembers) {
+      if (processedMemberIds.has(member.id)) {
+        console.log(`[GARD018] Skipping duplicate member: ${member.first_name} ${member.last_name}`)
+        continue
+      }
+
+      processedMemberIds.add(member.id)
+
       const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
 
       // Email to member
