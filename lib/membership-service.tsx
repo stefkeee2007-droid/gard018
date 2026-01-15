@@ -59,33 +59,32 @@ export async function processMembershipExpirations() {
     console.log(`[GARD018] Total members fetched: ${allMembers.length}`)
 
     const warningMembers = allMembers.filter((m: any) => {
-      const memberDateStr = m.expiry_date.toISOString
-        ? m.expiry_date.toISOString().split("T")[0]
-        : String(m.expiry_date).split("T")[0]
-      return memberDateStr === zaTriDanaString && m.status === "active"
+      const memberDateStr = new Date(m.expiry_date).toISOString().split("T")[0]
+      return memberDateStr === zaTriDanaString
     })
 
     const expiringMembers = allMembers.filter((m: any) => {
-      const memberDateStr = m.expiry_date.toISOString
-        ? m.expiry_date.toISOString().split("T")[0]
-        : String(m.expiry_date).split("T")[0]
-      return memberDateStr === targetDate && m.status === "active"
+      const memberDateStr = new Date(m.expiry_date).toISOString().split("T")[0]
+      const matches = memberDateStr === targetDate
+      if (matches) {
+        console.log(`[GARD018] ✓ Member ${m.first_name} ${m.last_name} MATCHES today (${targetDate})`)
+      }
+      return matches
     })
 
     console.log(`[GARD018] Found ${warningMembers.length} members expiring in 3 days`)
     console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY (cache: ${cacheDetector})`)
+    console.log(`[GARD018] Expiring members:`, expiringMembers.map((m) => `${m.first_name} ${m.last_name}`).join(", "))
 
     const debugInfo = {
       todayStr: targetDate,
       totalMembers: allMembers.length,
       expiringTodayCount: expiringMembers.length,
       members: allMembers.slice(0, 10).map((m: any) => {
-        const memberDateStr = m.expiry_date.toISOString
-          ? m.expiry_date.toISOString().split("T")[0]
-          : String(m.expiry_date).split("T")[0]
+        const memberDateStr = new Date(m.expiry_date).toISOString().split("T")[0]
         return {
           name: `${m.first_name} ${m.last_name}`,
-          rawDate: m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date),
+          rawDate: new Date(m.expiry_date).toISOString(),
           extractedDate: memberDateStr,
           matchesToday: memberDateStr === targetDate,
           status: m.status,
@@ -168,7 +167,10 @@ export async function processMembershipExpirations() {
 
     const expiryEmailsData: any[] = []
 
+    console.log(`[GARD018] Building email data for ${expiringMembers.length} members...`)
+
     for (const member of expiringMembers) {
+      console.log(`[GARD018] 📧 Preparing emails for: ${member.first_name} ${member.last_name} (${member.email})`)
       const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
 
       expiryEmailsData.push({
@@ -188,6 +190,9 @@ export async function processMembershipExpirations() {
       })
     }
 
+    console.log(`[GARD018] Finalni broj mejlova za slanje: ${expiryEmailsData.length}`)
+    console.log(`[GARD018] Email recipients:`, expiryEmailsData.map((e) => e.to).join(", "))
+
     const expiryNotifications: any[] = []
     const expiryFailed: any[] = []
 
@@ -201,14 +206,20 @@ export async function processMembershipExpirations() {
         batches.push(expiryEmailsData.slice(i, i + batchSize))
       }
 
+      console.log(`[GARD018] Total batches to send: ${batches.length}`)
+
       for (let i = 0; i < batches.length; i++) {
         try {
           console.log(`[GARD018] Sending expiry batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
+          console.log(
+            `[GARD018] Batch ${i + 1} recipients:`,
+            batches[i].map((e) => `${e.to} (${e.subject})`).join(", "),
+          )
 
           const batchResult = await resendExpiry.batch.send(batches[i])
 
           if (!batchResult.error) {
-            console.log(`[GARD018] Successfully sent expiry batch ${i + 1}/${batches.length}`)
+            console.log(`[GARD018] ✓ Successfully sent expiry batch ${i + 1}/${batches.length}`)
 
             for (const member of expiringMembers) {
               try {
@@ -229,16 +240,26 @@ export async function processMembershipExpirations() {
               }
             }
           } else {
-            console.error(`[GARD018] Expiry batch ${i + 1} failed:`, batchResult.error)
+            console.error(`[GARD018] ✗ Expiry batch ${i + 1} failed:`, batchResult.error)
+            for (const member of expiringMembers) {
+              expiryFailed.push({
+                member: `${member.first_name} ${member.last_name}`,
+                email: member.email,
+                reason: batchResult.error?.message || "Batch send failed",
+              })
+            }
           }
 
           if (i < batches.length - 1) {
+            console.log(`[GARD018] Pausing 1 second before next batch...`)
             await new Promise((resolve) => setTimeout(resolve, 1000))
           }
         } catch (error) {
           console.error(`[GARD018] Error sending expiry batch ${i + 1}:`, error)
         }
       }
+    } else {
+      console.log(`[GARD018] No expiry emails to send (expiryEmailsData.length = 0)`)
     }
 
     const allFailed = [...warningFailed, ...expiryFailed]
