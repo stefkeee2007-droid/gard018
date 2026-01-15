@@ -44,11 +44,13 @@ export async function processMembershipExpirations() {
     const nowInBelgrade = new Date(nowUTC.getTime() + UTC_OFFSET_HOURS * 60 * 60 * 1000)
 
     const danasString = nowInBelgrade.toISOString().split("T")[0] // "2026-01-15"
+    const sutraString = new Date(nowInBelgrade.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0] // Added tomorrow date for tolerance
     const zaTriDanaString = new Date(nowInBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
     console.log("[GARD018] Server time (UTC):", nowUTC.toISOString())
     console.log("[GARD018] Belgrade time (forced UTC+1):", nowInBelgrade.toISOString())
     console.log("[GARD018] Danas u Beogradu (datum string):", danasString)
+    console.log("[GARD018] Sutra u Beogradu (datum string):", sutraString) // Log tomorrow date
     console.log("[GARD018] Za 3 dana (datum string):", zaTriDanaString)
 
     console.log("[GARD018] Fetching ALL active members from database...")
@@ -60,6 +62,24 @@ export async function processMembershipExpirations() {
     `
 
     console.log(`[GARD018] Total active members in database: ${allMembers.length}`)
+
+    const allMembersDebugInfo = allMembers.map((m: any) => {
+      const rawDate = m.expiry_date
+      const parsedDate = new Date(rawDate)
+      const dateString = parsedDate.toISOString().split("T")[0]
+
+      return {
+        name: `${m.first_name} ${m.last_name}`,
+        email: m.email,
+        rawDateFromDB: rawDate,
+        parsedAsISO: parsedDate.toISOString(),
+        extractedDateString: dateString,
+        matchesDanas: dateString === danasString,
+        matchesSutra: dateString === sutraString,
+        danasStringWeAreComparing: danasString,
+      }
+    })
+
     allMembers.forEach((m: any) => {
       const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
       console.log(
@@ -78,17 +98,17 @@ export async function processMembershipExpirations() {
       console.log(`  - ${m.first_name} ${m.last_name}: ${m.expiry_date}`)
     })
 
-    console.log("[GARD018] Filtering members expiring TODAY...")
+    console.log("[GARD018] Filtering members expiring TODAY (or TOMORROW for 23:00 edge case)...")
     const expiringMembers = allMembers.filter((m: any) => {
       const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
-      return memberDateString === danasString
+      return memberDateString === danasString || memberDateString === sutraString
     })
 
     console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY (random: ${cacheDetector})`)
     expiringMembers.forEach((m: any) => {
       const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
       console.log(
-        `  - ${m.first_name} ${m.last_name}: ${m.expiry_date} -> ${memberDateString} (comparing to ${danasString})`,
+        `  - ${m.first_name} ${m.last_name}: ${m.expiry_date} -> ${memberDateString} (comparing to ${danasString} or ${sutraString})`,
       )
     })
 
@@ -258,11 +278,19 @@ export async function processMembershipExpirations() {
       warningSent: warningNotifications.length,
       expirySent: expiryNotifications.length,
       totalProcessed: warningMembers.length + expiringMembers.length,
+      totalMembers: allMembers.length, // Added totalMembers count
       warningNotifications,
       expiryNotifications,
       failed: allFailed.length > 0 ? allFailed : undefined,
       timestamp: new Date().toISOString(),
       cacheDetector,
+      debugInfo: allMembersDebugInfo, // Added detailed debug info for all members
+      comparisonDates: {
+        // Added comparison dates to response
+        danas: danasString,
+        sutra: sutraString,
+        zaTriDana: zaTriDanaString,
+      },
     }
   } catch (error) {
     console.error("[GARD018] CRITICAL ERROR in processMembershipExpirations:", error)
