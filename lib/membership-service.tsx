@@ -36,58 +36,57 @@ export async function processMembershipExpirations() {
   console.log("[GARD018] Process started at:", new Date().toISOString())
 
   try {
-    const timeZone = "Europe/Belgrade"
-
     const nowUTC = new Date()
     const UTC_OFFSET_HOURS = 1 // CET = UTC+1
     const nowInBelgrade = new Date(nowUTC.getTime() + UTC_OFFSET_HOURS * 60 * 60 * 1000)
 
-    const belgradeDateStr = nowInBelgrade.toISOString().split("T")[0] // YYYY-MM-DD
-    const threeDaysFromNowStr = new Date(nowInBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    const danasString = nowInBelgrade.toISOString().split("T")[0] // "2026-01-15"
+    const zaTriDanaString = new Date(nowInBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
     console.log("[GARD018] Server time (UTC):", nowUTC.toISOString())
     console.log("[GARD018] Belgrade time (forced UTC+1):", nowInBelgrade.toISOString())
-    console.log("[GARD018] Danas u Beogradu (datum):", belgradeDateStr)
-    console.log("[GARD018] Za 3 dana (datum):", threeDaysFromNowStr)
+    console.log("[GARD018] Danas u Beogradu (datum string):", danasString)
+    console.log("[GARD018] Za 3 dana (datum string):", zaTriDanaString)
 
-    console.log("[GARD018] Fetching ALL members from database...")
+    console.log("[GARD018] Fetching ALL active members from database...")
     const allMembers = await sql`
       SELECT id, first_name, last_name, email, expiry_date, start_date, status
       FROM members
+      WHERE status = 'active'
       ORDER BY expiry_date ASC
     `
 
-    console.log(`[GARD018] Total members in database: ${allMembers.length}`)
+    console.log(`[GARD018] Total active members in database: ${allMembers.length}`)
     allMembers.forEach((m: any) => {
+      const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
       console.log(
-        `  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date} (${typeof m.expiry_date}), status=${m.status}`,
+        `  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date} -> extracted date=${memberDateString}, status=${m.status}`,
       )
     })
 
-    console.log("[GARD018] Searching for members expiring in 3 days...")
-    const warningMembers = await sql`
-      SELECT id, first_name, last_name, email, expiry_date, status
-      FROM members
-      WHERE DATE(expiry_date) = DATE(${threeDaysFromNowStr})
-      AND status = 'active'
-    `
+    console.log("[GARD018] Filtering members expiring in 3 days...")
+    const warningMembers = allMembers.filter((m: any) => {
+      const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
+      return memberDateString === zaTriDanaString
+    })
 
     console.log(`[GARD018] Found ${warningMembers.length} members expiring in 3 days`)
     warningMembers.forEach((m: any) => {
       console.log(`  - ${m.first_name} ${m.last_name}: ${m.expiry_date}`)
     })
 
-    console.log("[GARD018] Searching for members expiring TODAY...")
-    const expiringMembers = await sql`
-      SELECT id, first_name, last_name, email, expiry_date, status
-      FROM members
-      WHERE DATE(expiry_date) = DATE(${belgradeDateStr})
-      AND status = 'active'
-    `
+    console.log("[GARD018] Filtering members expiring TODAY...")
+    const expiringMembers = allMembers.filter((m: any) => {
+      const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
+      return memberDateString === danasString
+    })
 
     console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY`)
     expiringMembers.forEach((m: any) => {
-      console.log(`  - ${m.first_name} ${m.last_name}: ${m.expiry_date}`)
+      const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
+      console.log(
+        `  - ${m.first_name} ${m.last_name}: ${m.expiry_date} -> ${memberDateString} (comparing to ${danasString})`,
+      )
     })
 
     const sampleMembers = await sql`
