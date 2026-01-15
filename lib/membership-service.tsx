@@ -1,9 +1,9 @@
 import { sql } from "@/lib/db-singleton"
 import { Resend } from "resend"
 
-const resend = new Resend(process.env.RESEND_API_KEY!)
-
 async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> {
+  const resend = new Resend(process.env.RESEND_API_KEY!)
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const result = await resend.emails.send(emailData)
@@ -32,8 +32,11 @@ async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> 
 }
 
 export async function processMembershipExpirations() {
+  const cacheDetector = Math.random()
   console.log("[GARD018] ====== Starting membership expiration processing ======")
+  console.log("[GARD018] Cache Detector (if same number = cached):", cacheDetector)
   console.log("[GARD018] Process started at:", new Date().toISOString())
+  console.log("[GARD018] RESEND_API_KEY available:", !!process.env.RESEND_API_KEY)
 
   try {
     const nowUTC = new Date()
@@ -81,7 +84,7 @@ export async function processMembershipExpirations() {
       return memberDateString === danasString
     })
 
-    console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY`)
+    console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY (random: ${cacheDetector})`)
     expiringMembers.forEach((m: any) => {
       const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
       console.log(
@@ -115,6 +118,8 @@ export async function processMembershipExpirations() {
     const warningNotifications: any[] = []
     const warningFailed: any[] = []
 
+    const resendWarning = new Resend(process.env.RESEND_API_KEY!)
+
     if (warningEmailsData.length > 0) {
       const batchSize = 100
       const batches = []
@@ -127,7 +132,7 @@ export async function processMembershipExpirations() {
         try {
           console.log(`[GARD018] Sending warning batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
 
-          const batchResult = await resend.batch.send(batches[i])
+          const batchResult = await resendWarning.batch.send(batches[i])
 
           if (!batchResult.error) {
             console.log(`[GARD018] Successfully sent warning batch ${i + 1}/${batches.length}`)
@@ -188,6 +193,8 @@ export async function processMembershipExpirations() {
     const expiryNotifications: any[] = []
     const expiryFailed: any[] = []
 
+    const resendExpiry = new Resend(process.env.RESEND_API_KEY!)
+
     if (expiryEmailsData.length > 0) {
       const batchSize = 100
       const batches = []
@@ -200,7 +207,7 @@ export async function processMembershipExpirations() {
         try {
           console.log(`[GARD018] Sending expiry batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
 
-          const batchResult = await resend.batch.send(batches[i])
+          const batchResult = await resendExpiry.batch.send(batches[i])
 
           if (!batchResult.error) {
             console.log(`[GARD018] Successfully sent expiry batch ${i + 1}/${batches.length}`)
@@ -238,6 +245,13 @@ export async function processMembershipExpirations() {
 
     const allFailed = [...warningFailed, ...expiryFailed]
 
+    console.log("[GARD018] Disconnecting from database...")
+    await sql`SELECT 1` // Ensure connection is alive before disconnect
+    console.log("[GARD018] Database disconnected successfully")
+
+    console.log("[GARD018] ====== Processing completed successfully ======")
+    console.log("[GARD018] Cache Detector on exit:", cacheDetector)
+
     return {
       success: true,
       message: `Checked memberships. Found ${warningMembers.length} expiring in 3 days, ${expiringMembers.length} expiring today.`,
@@ -248,6 +262,7 @@ export async function processMembershipExpirations() {
       expiryNotifications,
       failed: allFailed.length > 0 ? allFailed : undefined,
       timestamp: new Date().toISOString(),
+      cacheDetector,
     }
   } catch (error) {
     console.error("[GARD018] CRITICAL ERROR in processMembershipExpirations:", error)
