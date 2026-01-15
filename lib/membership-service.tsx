@@ -32,75 +32,55 @@ async function sendEmailWithRetry(emailData: any, maxRetries = 3): Promise<any> 
 }
 
 export async function processMembershipExpirations() {
-  const cacheDetector = Math.random()
-  console.log(`[GARD018] processMembershipExpirations() called - Cache detector: ${cacheDetector}`)
+  console.log("[GARD018] Starting membership expiration check...")
 
   try {
-    const nowUTC = new Date()
-    const UTC_OFFSET_MS = 1 * 60 * 60 * 1000
-    const nowBelgrade = new Date(nowUTC.getTime() + UTC_OFFSET_MS)
+    // Get current date in Belgrade timezone using Intl.DateTimeFormat
+    const getBelgradeDate = (daysOffset = 0): string => {
+      const targetDate = new Date()
+      if (daysOffset > 0) {
+        targetDate.setDate(targetDate.getDate() + daysOffset)
+      }
 
-    const targetDate = nowBelgrade.toISOString().split("T")[0]
-    const zaTriDanaDate = new Date(nowBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000)
-    const zaTriDanaString = zaTriDanaDate.toISOString().split("T")[0]
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Belgrade",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(targetDate)
+    }
 
-    console.log("[GARD018] Current UTC time:", nowUTC.toISOString())
-    console.log("[GARD018] Belgrade time (UTC+1):", nowBelgrade.toISOString())
-    console.log("[GARD018] Target date string (today in Serbia):", targetDate)
-    console.log("[GARD018] In 3 days date string:", zaTriDanaString)
+    const todayInBelgrade = getBelgradeDate(0)
+    const in3DaysInBelgrade = getBelgradeDate(3)
 
-    console.log("[GARD018] Fetching ALL members from database...")
+    console.log("[GARD018] Today in Belgrade (Europe/Belgrade timezone):", todayInBelgrade)
+    console.log("[GARD018] In 3 days in Belgrade:", in3DaysInBelgrade)
+
+    // Fetch all members from database
     const allMembers = await sql`
       SELECT id, first_name, last_name, email, expiry_date, status
       FROM members
       ORDER BY expiry_date ASC
     `
 
-    console.log(`[GARD018] Total members fetched: ${allMembers.length}`)
+    console.log(`[GARD018] Found ${allMembers.length} total members in database`)
 
+    // Filter members expiring in 3 days (warning emails)
     const warningMembers = allMembers.filter((m: any) => {
       const memberDateStr = new Date(m.expiry_date).toISOString().split("T")[0]
-      return memberDateStr === zaTriDanaString
+      return memberDateStr === in3DaysInBelgrade
     })
 
+    // Filter members expiring today (expiry emails)
     const expiringMembers = allMembers.filter((m: any) => {
       const memberDateStr = new Date(m.expiry_date).toISOString().split("T")[0]
-      const matches = memberDateStr === targetDate
-      if (matches) {
-        console.log(`[GARD018] ✓ Member ${m.first_name} ${m.last_name} MATCHES today (${targetDate})`)
-      }
-      return matches
+      return memberDateStr === todayInBelgrade
     })
 
     console.log(`[GARD018] Found ${warningMembers.length} members expiring in 3 days`)
-    console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY (cache: ${cacheDetector})`)
-    console.log(`[GARD018] Expiring members:`, expiringMembers.map((m) => `${m.first_name} ${m.last_name}`).join(", "))
+    console.log(`[GARD018] Found ${expiringMembers.length} members expiring today`)
 
-    const debugInfo = {
-      todayStr: targetDate,
-      totalMembers: allMembers.length,
-      expiringTodayCount: expiringMembers.length,
-      members: allMembers.slice(0, 10).map((m: any) => {
-        const memberDateStr = new Date(m.expiry_date).toISOString().split("T")[0]
-        return {
-          name: `${m.first_name} ${m.last_name}`,
-          rawDate: new Date(m.expiry_date).toISOString(),
-          extractedDate: memberDateStr,
-          matchesToday: memberDateStr === targetDate,
-          status: m.status,
-        }
-      }),
-    }
-
-    allMembers.forEach((m: any) => {
-      const memberDateString = m.expiry_date.toISOString
-        ? m.expiry_date.toISOString().split("T")[0]
-        : String(m.expiry_date).split("T")[0]
-      console.log(
-        `  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date} -> extracted date=${memberDateString}, status=${m.status}, matches today=${memberDateString === targetDate}`,
-      )
-    })
-
+    // Build warning emails (3 days before expiry)
     const warningEmailsData = warningMembers.map((member: any) => {
       const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
       return {
@@ -113,10 +93,9 @@ export async function processMembershipExpirations() {
     })
 
     const warningNotifications: any[] = []
-    const warningFailed: any[] = []
-
     const resendWarning = new Resend(process.env.RESEND_API_KEY!)
 
+    // Send warning emails in batches
     if (warningEmailsData.length > 0) {
       const batchSize = 100
       const batches = []
@@ -128,7 +107,6 @@ export async function processMembershipExpirations() {
       for (let i = 0; i < batches.length; i++) {
         try {
           console.log(`[GARD018] Sending warning batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
-
           const batchResult = await resendWarning.batch.send(batches[i])
 
           if (!batchResult.error) {
@@ -144,18 +122,10 @@ export async function processMembershipExpirations() {
               })
             }
           } else {
-            console.error(`[GARD018] Batch ${i + 1} failed:`, batchResult.error)
-            const batchStartIdx = i * batchSize
-            for (let j = 0; j < batches[i].length; j++) {
-              const member = warningMembers[batchStartIdx + j]
-              warningFailed.push({
-                member: `${member.first_name} ${member.last_name}`,
-                email: member.email,
-                reason: batchResult.error?.message || "Batch send failed",
-              })
-            }
+            console.error(`[GARD018] Warning batch ${i + 1} failed:`, batchResult.error)
           }
 
+          // Rate limit protection: 1 second pause between batches
           if (i < batches.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, 1000))
           }
@@ -165,14 +135,13 @@ export async function processMembershipExpirations() {
       }
     }
 
+    // Build expiry emails (for members + founder)
     const expiryEmailsData: any[] = []
 
-    console.log(`[GARD018] Building email data for ${expiringMembers.length} members...`)
-
     for (const member of expiringMembers) {
-      console.log(`[GARD018] 📧 Preparing emails for: ${member.first_name} ${member.last_name} (${member.email})`)
       const expiryDate = new Date(member.expiry_date).toLocaleDateString("sr-RS")
 
+      // Email to member
       expiryEmailsData.push({
         from: "GARD 018 <info@gard018.com>",
         to: member.email,
@@ -181,6 +150,7 @@ export async function processMembershipExpirations() {
         html: getMemberEmailHTML(member, expiryDate),
       })
 
+      // Email to founder
       expiryEmailsData.push({
         from: "GARD 018 <info@gard018.com>",
         to: "ognjen.boks19@gmail.com",
@@ -190,14 +160,12 @@ export async function processMembershipExpirations() {
       })
     }
 
-    console.log(`[GARD018] Finalni broj mejlova za slanje: ${expiryEmailsData.length}`)
-    console.log(`[GARD018] Email recipients:`, expiryEmailsData.map((e) => e.to).join(", "))
+    console.log(`[GARD018] Total expiry emails to send: ${expiryEmailsData.length}`)
 
     const expiryNotifications: any[] = []
-    const expiryFailed: any[] = []
-
     const resendExpiry = new Resend(process.env.RESEND_API_KEY!)
 
+    // Send expiry emails in batches
     if (expiryEmailsData.length > 0) {
       const batchSize = 100
       const batches = []
@@ -206,21 +174,15 @@ export async function processMembershipExpirations() {
         batches.push(expiryEmailsData.slice(i, i + batchSize))
       }
 
-      console.log(`[GARD018] Total batches to send: ${batches.length}`)
-
       for (let i = 0; i < batches.length; i++) {
         try {
           console.log(`[GARD018] Sending expiry batch ${i + 1}/${batches.length} (${batches[i].length} emails)`)
-          console.log(
-            `[GARD018] Batch ${i + 1} recipients:`,
-            batches[i].map((e) => `${e.to} (${e.subject})`).join(", "),
-          )
-
           const batchResult = await resendExpiry.batch.send(batches[i])
 
           if (!batchResult.error) {
-            console.log(`[GARD018] ✓ Successfully sent expiry batch ${i + 1}/${batches.length}`)
+            console.log(`[GARD018] Successfully sent expiry batch ${i + 1}/${batches.length}`)
 
+            // Update member status to 'expired'
             for (const member of expiringMembers) {
               try {
                 await sql`
@@ -240,47 +202,30 @@ export async function processMembershipExpirations() {
               }
             }
           } else {
-            console.error(`[GARD018] ✗ Expiry batch ${i + 1} failed:`, batchResult.error)
-            for (const member of expiringMembers) {
-              expiryFailed.push({
-                member: `${member.first_name} ${member.last_name}`,
-                email: member.email,
-                reason: batchResult.error?.message || "Batch send failed",
-              })
-            }
+            console.error(`[GARD018] Expiry batch ${i + 1} failed:`, batchResult.error)
           }
 
+          // Rate limit protection: 1 second pause between batches
           if (i < batches.length - 1) {
-            console.log(`[GARD018] Pausing 1 second before next batch...`)
             await new Promise((resolve) => setTimeout(resolve, 1000))
           }
         } catch (error) {
           console.error(`[GARD018] Error sending expiry batch ${i + 1}:`, error)
         }
       }
-    } else {
-      console.log(`[GARD018] No expiry emails to send (expiryEmailsData.length = 0)`)
     }
 
-    const allFailed = [...warningFailed, ...expiryFailed]
-
-    console.log("[GARD018] Disconnecting from database...")
-    await sql`SELECT 1` // Ensure connection is alive before disconnect
-    console.log("[GARD018] Database disconnected successfully")
-
-    console.log("[GARD018] ====== Processing completed successfully ======")
-    console.log("[GARD018] Cache Detector on exit:", cacheDetector)
+    console.log("[GARD018] Processing completed successfully")
 
     return {
       success: true,
       message: `Checked memberships. Found ${warningMembers.length} expiring in 3 days, ${expiringMembers.length} expiring today.`,
       warningSent: warningNotifications.length,
       expirySent: expiryNotifications.length,
-      totalProcessed: warningMembers.length + expiringMembers.length,
+      expiringToday: expiringMembers.length,
+      expiringIn3Days: warningMembers.length,
       warningNotifications,
       expiryNotifications,
-      cacheDetector,
-      debug: debugInfo,
       timestamp: new Date().toISOString(),
     }
   } catch (error) {
@@ -288,7 +233,6 @@ export async function processMembershipExpirations() {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
-      cacheDetector,
       timestamp: new Date().toISOString(),
     }
   }
