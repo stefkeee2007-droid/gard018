@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { processMembershipExpirations } from "@/lib/membership-service"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+export const maxDuration = 60
+
 export async function GET(request: Request) {
   console.log("[GARD018 CRON] ====== CRON JOB TRIGGERED ======")
   console.log("[GARD018 CRON] Timestamp:", new Date().toISOString())
@@ -31,6 +35,3 @@ export async function GET(request: Request) {
     )
   }
 }
-
-export const dynamic = "force-dynamic"
-export const maxDuration = 60
