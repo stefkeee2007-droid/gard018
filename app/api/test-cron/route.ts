@@ -9,67 +9,76 @@ export async function GET(request: Request) {
     const UTC_OFFSET_MS = 1 * 60 * 60 * 1000 // CET = UTC+1
     const nowBelgrade = new Date(nowUTC.getTime() + UTC_OFFSET_MS)
 
-    // Get date in YYYY-MM-DD format
     const todayStr = nowBelgrade.toISOString().split("T")[0]
+    const in3DaysDate = new Date(nowBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000)
+    const in3DaysStr = in3DaysDate.toISOString().split("T")[0]
 
     console.log("[GARD018 TEST] Server UTC time:", nowUTC.toISOString())
     console.log("[GARD018 TEST] Belgrade time (UTC+1):", nowBelgrade.toISOString())
-    console.log("[GARD018 TEST] Searching for expiry_date =", todayStr)
+    console.log("[GARD018 TEST] Today date string:", todayStr)
+    console.log("[GARD018 TEST] In 3 days date string:", in3DaysStr)
 
     console.log("[GARD018 TEST] Fetching ALL members from database...")
     const allMembers = await sql`
       SELECT id, first_name, last_name, email, 
              expiry_date, 
-             DATE(expiry_date) as expiry_date_only,
              status
       FROM members
       ORDER BY expiry_date ASC
     `
 
-    console.log(`[GARD018 TEST] Total members: ${allMembers.length}`)
+    console.log(`[GARD018 TEST] Total members in database: ${allMembers.length}`)
     allMembers.forEach((m: any) => {
+      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
+      const expiryDateOnly = expiryStr.split("T")[0]
       console.log(
-        `  - ${m.first_name} ${m.last_name}: expiry_date=${m.expiry_date}, date_only=${m.expiry_date_only}, status=${m.status}`,
+        `  - ${m.first_name} ${m.last_name}: expiry=${expiryStr}, date_only=${expiryDateOnly}, status=${m.status}`,
       )
     })
 
-    console.log(`[GARD018 TEST] Searching for members expiring on ${todayStr}...`)
-    const expiringToday = await sql`
-      SELECT id, first_name, last_name, email, expiry_date, status
-      FROM members
-      WHERE DATE(expiry_date) = ${todayStr}
-    `
-
-    console.log(`[GARD018 TEST] Found ${expiringToday.length} members expiring today`)
-    expiringToday.forEach((m: any) => {
-      console.log(`  - ${m.first_name} ${m.last_name}: ${m.expiry_date} (status: ${m.status})`)
+    // This avoids timezone issues with SQL timestamp comparisons
+    const expiringToday = allMembers.filter((m: any) => {
+      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
+      const expiryDateOnly = expiryStr.split("T")[0]
+      return expiryDateOnly === todayStr && m.status === "active"
     })
 
-    const expiringTodayAlt = await sql`
-      SELECT id, first_name, last_name, email, expiry_date, status
-      FROM members
-      WHERE expiry_date::text LIKE ${todayStr + "%"}
-    `
+    const expiringIn3Days = allMembers.filter((m: any) => {
+      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
+      const expiryDateOnly = expiryStr.split("T")[0]
+      return expiryDateOnly === in3DaysStr && m.status === "active"
+    })
 
-    console.log(`[GARD018 TEST] Alternative search (string match): ${expiringTodayAlt.length} members`)
+    console.log(`[GARD018 TEST] Found ${expiringToday.length} members expiring TODAY (${todayStr})`)
+    expiringToday.forEach((m: any) => {
+      console.log(`  ✓ ${m.first_name} ${m.last_name}: ${m.email}`)
+    })
 
-    console.log("[GARD018 TEST] ====== TEST COMPLETED ======")
+    console.log(`[GARD018 TEST] Found ${expiringIn3Days.length} members expiring IN 3 DAYS (${in3DaysStr})`)
+    expiringIn3Days.forEach((m: any) => {
+      console.log(`  ⚠ ${m.first_name} ${m.last_name}: ${m.email}`)
+    })
+
+    console.log("[GARD018 TEST] ====== TEST COMPLETED SUCCESSFULLY ======")
 
     return NextResponse.json({
+      success: true,
       testTriggered: true,
       timestamp: nowUTC.toISOString(),
       belgradetime: nowBelgrade.toISOString(),
       searchDate: todayStr,
+      in3DaysDate: in3DaysStr,
       totalMembers: allMembers.length,
       expiringToday: expiringToday.length,
-      members: allMembers.map((m: any) => ({
+      expiringIn3Days: expiringIn3Days.length,
+      todayMembers: expiringToday.map((m: any) => ({
         name: `${m.first_name} ${m.last_name}`,
+        email: m.email,
         expiryDate: m.expiry_date,
-        expiryDateOnly: m.expiry_date_only,
-        status: m.status,
       })),
-      expiringMembers: expiringToday.map((m: any) => ({
+      warningMembers: expiringIn3Days.map((m: any) => ({
         name: `${m.first_name} ${m.last_name}`,
+        email: m.email,
         expiryDate: m.expiry_date,
       })),
     })
@@ -78,6 +87,7 @@ export async function GET(request: Request) {
     console.error("[GARD018 TEST] Error:", error)
     return NextResponse.json(
       {
+        success: false,
         testTriggered: false,
         error: "Test failed",
         details: error instanceof Error ? error.message : "Unknown error",
