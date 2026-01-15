@@ -40,14 +40,14 @@ export async function processMembershipExpirations() {
     const UTC_OFFSET_MS = 1 * 60 * 60 * 1000
     const nowBelgrade = new Date(nowUTC.getTime() + UTC_OFFSET_MS)
 
-    const danasString = nowBelgrade.toISOString().split("T")[0]
+    const targetDate = nowBelgrade.toISOString().split("T")[0]
     const zaTriDanaDate = new Date(nowBelgrade.getTime() + 3 * 24 * 60 * 60 * 1000)
     const zaTriDanaString = zaTriDanaDate.toISOString().split("T")[0]
 
     console.log("[GARD018] Current UTC time:", nowUTC.toISOString())
     console.log("[GARD018] Belgrade time (UTC+1):", nowBelgrade.toISOString())
-    console.log("[GARD018] Today's date string (danasString):", danasString)
-    console.log("[GARD018] In 3 days date string (zaTriDanaString):", zaTriDanaString)
+    console.log("[GARD018] Target date string (today in Serbia):", targetDate)
+    console.log("[GARD018] In 3 days date string:", zaTriDanaString)
 
     console.log("[GARD018] Fetching ALL members from database...")
     const allMembers = await sql`
@@ -59,38 +59,46 @@ export async function processMembershipExpirations() {
     console.log(`[GARD018] Total members fetched: ${allMembers.length}`)
 
     const warningMembers = allMembers.filter((m: any) => {
-      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
-      const expiryDateOnly = expiryStr.split("T")[0]
-      return expiryDateOnly === zaTriDanaString && m.status === "active"
+      const memberDateStr = m.expiry_date.toISOString
+        ? m.expiry_date.toISOString().split("T")[0]
+        : String(m.expiry_date).split("T")[0]
+      return memberDateStr === zaTriDanaString && m.status === "active"
     })
 
     const expiringMembers = allMembers.filter((m: any) => {
-      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
-      const expiryDateOnly = expiryStr.split("T")[0]
-      return expiryDateOnly === danasString && m.status === "active"
+      const memberDateStr = m.expiry_date.toISOString
+        ? m.expiry_date.toISOString().split("T")[0]
+        : String(m.expiry_date).split("T")[0]
+      return memberDateStr === targetDate && m.status === "active"
     })
 
     console.log(`[GARD018] Found ${warningMembers.length} members expiring in 3 days`)
     console.log(`[GARD018] Found ${expiringMembers.length} members expiring TODAY (cache: ${cacheDetector})`)
 
-    const debugInfo = allMembers.slice(0, 5).map((m: any) => {
-      const expiryStr = m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date)
-      const expiryDateOnly = expiryStr.split("T")[0]
-      return {
-        name: `${m.first_name} ${m.last_name}`,
-        rawExpiryDate: expiryStr,
-        extractedDate: expiryDateOnly,
-        matchesToday: expiryDateOnly === danasString,
-        matchesIn3Days: expiryDateOnly === zaTriDanaString,
-        todayWeAreComparing: danasString,
-        status: m.status,
-      }
-    })
+    const debugInfo = {
+      todayStr: targetDate,
+      totalMembers: allMembers.length,
+      expiringTodayCount: expiringMembers.length,
+      members: allMembers.slice(0, 10).map((m: any) => {
+        const memberDateStr = m.expiry_date.toISOString
+          ? m.expiry_date.toISOString().split("T")[0]
+          : String(m.expiry_date).split("T")[0]
+        return {
+          name: `${m.first_name} ${m.last_name}`,
+          rawDate: m.expiry_date.toISOString ? m.expiry_date.toISOString() : String(m.expiry_date),
+          extractedDate: memberDateStr,
+          matchesToday: memberDateStr === targetDate,
+          status: m.status,
+        }
+      }),
+    }
 
     allMembers.forEach((m: any) => {
-      const memberDateString = new Date(m.expiry_date).toISOString().split("T")[0]
+      const memberDateString = m.expiry_date.toISOString
+        ? m.expiry_date.toISOString().split("T")[0]
+        : String(m.expiry_date).split("T")[0]
       console.log(
-        `  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date} -> extracted date=${memberDateString}, status=${m.status}`,
+        `  - ${m.first_name} ${m.last_name}: expiry=${m.expiry_date} -> extracted date=${memberDateString}, status=${m.status}, matches today=${memberDateString === targetDate}`,
       )
     })
 
@@ -251,7 +259,7 @@ export async function processMembershipExpirations() {
       warningNotifications,
       expiryNotifications,
       cacheDetector,
-      debugInfo,
+      debug: debugInfo,
       timestamp: new Date().toISOString(),
     }
   } catch (error) {
