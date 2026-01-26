@@ -129,15 +129,16 @@ export function Contact() {
               </div>
             </div>
 
-            <div className="aspect-video rounded-sm overflow-hidden border border-primary/10 bg-background/50">
+            <div className="rounded-sm overflow-hidden border border-primary/10 bg-background/50">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2903.0384953785792!2d21.890680576254706!3d43.31345357433835!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4755b10d98e7824d%3A0x4f48ac7a0ed77ecc!2sKIK%20BOKS%20KLUB%20GARD%20018!5e0!3m2!1ssr!2srs!4v1769442021727!5m2!1ssr!2srs"
+                src="https://maps.google.com/maps?q=GARD+018+Borilački+Klub,+Svetozara+Miletića+10,+Niš&t=&z=16&ie=UTF8&iwloc=&output=embed"
                 width="100%"
-                height="100%"
-                style={{ border: 0, filter: "grayscale(20%) brightness(90%)" }}
+                height="450"
+                style={{ border: 0, borderRadius: 12, filter: "grayscale(20%) brightness(90%)" }}
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
+                title="GARD 018 Borilački Klub lokacija"
               />
             </div>
           </div>
