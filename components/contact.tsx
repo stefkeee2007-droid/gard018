@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -18,32 +18,6 @@ export function Contact() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
   const [errorMessage, setErrorMessage] = useState("")
-  const [isMapActive, setIsMapActive] = useState(false)
-  const mapContainerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        setIsMapActive(true)
-      }
-    }
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (!e.ctrlKey && !e.metaKey) {
-        setIsMapActive(false)
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    window.addEventListener("keyup", handleKeyUp)
-    window.addEventListener("blur", () => setIsMapActive(false))
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-      window.removeEventListener("keyup", handleKeyUp)
-      window.removeEventListener("blur", () => setIsMapActive(false))
-    }
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -155,29 +129,16 @@ export function Contact() {
               </div>
             </div>
 
-            <div
-              ref={mapContainerRef}
-              className="rounded-sm overflow-hidden border border-primary/10 bg-background/50 relative"
-            >
+            <div className="rounded-sm overflow-hidden border border-primary/10 bg-background/50">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2902.864387431252!2d21.9056345!3d43.317094!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4755b0a340b0f7e7%3A0xe54d60232759e91!2zR0FSRCAwMTggQm9yaWxhxI1raSBLbHVi!5e0!3m2!1ssr!2srs!4v1705300000000!5m2!1ssr!2srs"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2902.864387431252!2d21.9056345!3d43.317094!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4755b0a340b0f7e7%3A0xe54d60232759e91!2zR0FSRCAwMTggQm9yaWxhxI1raSBLbHVi!5e0!3m2!1ssr!2srs!4v1705300000000!5m2!1ssr!2srs&gestureHandling=greedy"
                 width="100%"
                 height="450"
-                style={{ border: 0, borderRadius: 12, filter: "grayscale(20%) brightness(90%)", pointerEvents: isMapActive ? 'auto' : 'none' }}
+                style={{ border: 0, borderRadius: 12, filter: "grayscale(20%) brightness(90%)" }}
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
               />
-              {!isMapActive && (
-                <div
-                  className="absolute inset-0 cursor-pointer"
-                  onClick={() => {
-                    if (mapContainerRef.current) {
-                      mapContainerRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
-                    }
-                  }}
-                />
-              )}
             </div>
           </div>
 
