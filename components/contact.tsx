@@ -131,13 +131,14 @@ export function Contact() {
 
             <div className="rounded-sm overflow-hidden border border-primary/10 bg-background/50">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2902.864387431252!2d21.9056345!3d43.317094!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4755b0a340b0f7e7%3A0xe54d60232759e91!2zR0FSRCAwMTggQm9yaWxhxI1raSBLbHVi!5e0!3m2!1ssr!2srs!4v1705300000000!5m2!1ssr!2srs&gestureHandling=greedy"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2902.864387431252!2d21.9056345!3d43.317094!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4755b0a340b0f7e7%3A0xe54d60232759e91!2zR0FSRCAwMTggQm9yaWxhxI1raSBLbHVi!5e0!3m2!1ssr!2srs!4v1705300000000!5m2!1ssr!2srs&zoom=15&gestureHandling=greedy"
                 width="100%"
                 height="450"
                 style={{ border: 0, borderRadius: 12, filter: "grayscale(20%) brightness(90%)" }}
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
+                title="GARD 018 Borilački Klub lokacija"
               />
             </div>
           </div>
